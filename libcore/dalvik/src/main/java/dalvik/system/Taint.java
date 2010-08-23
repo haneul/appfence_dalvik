@@ -434,5 +434,16 @@ public final class Taint {
      *	    the file descriptor
      */
     native public static void logPeerFromFd(int fd);
-}
 
+    /**
+     * Remove a taint tag from a primitive int value. Only the returned int has
+     * the taint tag removed.
+     *
+     * @param val
+     *	    the target int 
+     * @param tag
+     *	    the taint tag to remove
+     * @return the int with the taint tag removed
+     */
+    native public static int removeTaintInt(int val, int tag);
+}

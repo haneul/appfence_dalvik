@@ -599,6 +599,22 @@ static void Dalvik_dalvik_system_Taint_addTaintFile(const u4* args,
 }
 
 /*
+ * public static int removeTaintInt(int val, int tag)
+ */
+static void Dalvik_dalvik_system_Taint_removeTaintInt(const u4* args,
+    JValue* pResult)
+{
+    u4 val     = args[0];
+    u4 tag     = args[1];	        /* the tag to remove */
+    u4* rtaint = (u4*) &args[2];    /* pointer to return taint tag */
+    u4 vtaint  = args[3];	        /* the existing taint tag on val */
+    //*rtaint = (vtaint | tag);
+    *rtaint = (vtaint & (~tag));    /* AND existing tag with NOT of tag to
+                                       remove */
+    RETURN_INT(val);
+}
+
+/*
  * public static void log(String msg)
  */
 static void Dalvik_dalvik_system_Taint_log(const u4* args,
@@ -732,6 +748,8 @@ const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
         Dalvik_dalvik_system_Taint_getTaintFile},
     { "addTaintFile",  "(II)V",
         Dalvik_dalvik_system_Taint_addTaintFile},
+    { "removeTaintInt",  "(II)I",
+        Dalvik_dalvik_system_Taint_removeTaintInt},
     { "log",  "(Ljava/lang/String;)V",
         Dalvik_dalvik_system_Taint_log},
     { "logPathFromFd",  "(I)V",
