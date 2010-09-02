@@ -536,7 +536,20 @@ final class OSNetworkSystem implements INetworkSystem {
 	    Taint.log("OSNetworkSystem.sendStream("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
 	}
 	// end WITH_TAINT_TRACKING
-        return sendStreamImpl(fd, data, offset, count);
+        Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                "calling allowExposeNetwork(fd, data)");
+        if (Taint.allowExposeNetwork(fd, data)) {
+            Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                    "allowExposeNetwork() returned true, calling "+
+                    "sendStreamImpl()");
+            return sendStreamImpl(fd, data, offset, count);
+        } else {
+            Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                    "allowExposeNetwork() returned false, throwing a "+
+                    "SocketException");
+            throw new SocketException("not allowed to expose data with taint "+
+                    "0x"+Integer.toHexString(tag));
+        }
     }
 
     static native int sendStreamImpl(FileDescriptor fd, byte[] data,
@@ -670,7 +683,20 @@ final class OSNetworkSystem implements INetworkSystem {
 	    Taint.log("OSNetworkSystem.sendConnectedDatagram("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
 	}
 	// end WITH_TAINT_TRACKING
-        return sendConnectedDatagramImpl(fd, data, offset, length, bindToDevice);
+        Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
+                "calling allowExposeNetwork(fd, data)");
+        if (Taint.allowExposeNetwork(fd, data)) {
+            Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
+                    "allowExposeNetwork() returned true, calling "+
+                    "sendConnectedDatagramImpl()");
+            return sendConnectedDatagramImpl(fd, data, offset, length, bindToDevice);
+        } else {
+            Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
+                    "allowExposeNetwork() returned false, throwing a "+
+                    "SocketException");
+            throw new SocketException("not allowed to expose data with taint "+
+                    "0x"+Integer.toHexString(tag));
+        }
     }
 
     static native int sendConnectedDatagramImpl(FileDescriptor fd,
@@ -728,8 +754,21 @@ final class OSNetworkSystem implements INetworkSystem {
 	    Taint.log("OSNetworkSystem.sendDatagram("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
 	}
 	// end WITH_TAINT_TRACKING
-        return sendDatagramImpl(fd, data, offset, length, port, bindToDevice,
-                trafficClass, inetAddress);
+        Taint.log("phornyac: OSNetworkSystem.sendDatagram(): "+
+                "calling allowExposeNetwork(fd, data)");
+        if (Taint.allowExposeNetwork(fd, data)) {
+            Taint.log("phornyac: OSNetworkSystem.sendDatagram(): "+
+                    "allowExposeNetwork() returned true, calling "+
+                    "sendDatagramImpl()");
+            return sendDatagramImpl(fd, data, offset, length, port, bindToDevice,
+                    trafficClass, inetAddress);
+        } else {
+            Taint.log("phornyac: OSNetworkSystem.sendDatagram(): "+
+                    "allowExposeNetwork() returned false, throwing a "+
+                    "SocketException");
+            throw new SocketException("not allowed to expose data with taint "+
+                    "0x"+Integer.toHexString(tag));
+        }
     }
 
     static native int sendDatagramImpl(FileDescriptor fd, byte[] data, int offset,
@@ -747,7 +786,20 @@ final class OSNetworkSystem implements INetworkSystem {
 	    Taint.log("OSNetworkSystem.sendDatagram2("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
 	}
 	// end WITH_TAINT_TRACKING
-        return sendDatagramImpl2(fd, data, offset, length, port, inetAddress);
+        Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
+                "calling allowExposeNetwork(fd, data)");
+        if (Taint.allowExposeNetwork(fd, data)) {
+            Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
+                    "allowExposeNetwork() returned true, calling "+
+                    "sendDatagramImpl2()");
+            return sendDatagramImpl2(fd, data, offset, length, port, inetAddress);
+        } else {
+            Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
+                    "allowExposeNetwork() returned false, throwing a "+
+                    "SocketException");
+            throw new SocketException("not allowed to expose data with taint "+
+                    "0x"+Integer.toHexString(tag));
+        }
     }
 
     static native int sendDatagramImpl2(FileDescriptor fd, byte[] data,
@@ -778,7 +830,24 @@ final class OSNetworkSystem implements INetworkSystem {
 	    Taint.log("OSNetworkSystem.sendUrgentData("+addr+") received data with tag " + tstr + " value=["+value+"]");
 	}
 	// end WITH_TAINT_TRACKING
-        sendUrgentDataImpl(fd, value);
+        Taint.log("phornyac: OSNetworkSystem.sendUrgentData(): "+
+                "calling allowExposeNetwork(fd, data)");
+        /* allowExposeNetwork() needs a byte[], not just a byte: */
+          //XXX: is this the right thing to do??? Haven't tested...
+        byte[] valueArray = new byte[1];
+        valueArray[0] = value;
+        if (Taint.allowExposeNetwork(fd, valueArray)) {
+            Taint.log("phornyac: OSNetworkSystem.sendUrgentData(): "+
+                    "allowExposeNetwork() returned true, calling "+
+                    "sendUrgentDataImpl()");
+            sendUrgentDataImpl(fd, value);
+        } else {
+            Taint.log("phornyac: OSNetworkSystem.sendUrgentData(): "+
+                    "allowExposeNetwork() returned false, not throwing an "+
+                    "exception, just returning");
+            /* INetworkSystem::sendUrgentData() doesn't throw any exceptions */
+            return;
+        }
     }
 
     static native void sendUrgentDataImpl(FileDescriptor fd, byte value);
@@ -894,7 +963,20 @@ final class OSNetworkSystem implements INetworkSystem {
 	    Taint.log("OSNetworkSystem.write("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
 	}
 	// end WITH_TAINT_TRACKING
-        return writeSocketImpl(fd, data, offset, count);
+        Taint.log("phornyac: OSNetworkSystem.write(): "+
+                "calling allowExposeNetwork(fd, data)");
+        if (Taint.allowExposeNetwork(fd, data)) {
+            Taint.log("phornyac: OSNetworkSystem.write(): "+
+                    "allowExposeNetwork() returned true, calling "+
+                    "writeSocketImpl()");
+            return writeSocketImpl(fd, data, offset, count);
+        } else {
+            Taint.log("phornyac: OSNetworkSystem.write(): "+
+                    "allowExposeNetwork() returned false, throwing a "+
+                    "SocketException");
+            throw new SocketException("not allowed to expose data with taint "+
+                    "0x"+Integer.toHexString(tag));
+        }
     }
 
     static native int writeSocketImpl(FileDescriptor fd, byte[] data, int offset,

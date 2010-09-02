@@ -42,6 +42,7 @@
 #include <cutils/properties.h>
 #include <cutils/adb_networking.h>
 #include "AndroidSystemNatives.h"
+#include <cutils/process_name.h>
 
 // Temporary hack to build on systems that don't have up-to-date libc headers.
 #ifndef IPV6_TCLASS
@@ -1688,6 +1689,15 @@ static void osNetworkSystem_oneTimeInitializationImpl(JNIEnv* env, jobject obj,
  */
 static int createSocketFileDescriptor(JNIEnv* env, jobject fileDescriptor,
                                       int type) {
+    const char* process_name = get_process_name();
+    if (process_name) {
+        LOGW("phornyac: OSNetworkSystem.cpp createSocketFileDescriptor(): "
+                "process_name=%s", process_name);
+    } else {
+        LOGW("phornyac: OSNetworkSystem.cpp createSocketFileDescriptor(): "
+                "process_name=NULL");
+    }
+
     if (fileDescriptor == NULL) {
         throwNullPointerException(env);
         errno = EBADF;

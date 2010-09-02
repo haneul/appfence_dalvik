@@ -24,6 +24,7 @@
 #include "attr/xattr.h"
 
 #include <errno.h>
+#include <cutils/process_name.h>
 
 #define TAINT_XATTR_NAME "user.taint"
 
@@ -528,7 +529,10 @@ static u4 getTaintXattr(int fd)
 	} else if (errno == ENOTSUP) {
 	    /* XATTRs are not supported. No need to spam the logs */
 	} else {
-	    LOGW("TaintLog: fgetxattr(%d): unknown error code %d", fd, errno);
+        /* There's a bug with this when checking taint on logcat file or
+         * something... 
+         */
+        //LOGW("TaintLog: fgetxattr(%d): unknown error code %d", fd, errno);
 	}
     }
 
@@ -599,22 +603,6 @@ static void Dalvik_dalvik_system_Taint_addTaintFile(const u4* args,
 }
 
 /*
- * public static int removeTaintInt(int val, int tag)
- */
-static void Dalvik_dalvik_system_Taint_removeTaintInt(const u4* args,
-    JValue* pResult)
-{
-    u4 val     = args[0];
-    u4 tag     = args[1];	        /* the tag to remove */
-    u4* rtaint = (u4*) &args[2];    /* pointer to return taint tag */
-    u4 vtaint  = args[3];	        /* the existing taint tag on val */
-    //*rtaint = (vtaint | tag);
-    *rtaint = (vtaint & (~tag));    /* AND existing tag with NOT of tag to
-                                       remove */
-    RETURN_INT(val);
-}
-
-/*
  * public static void log(String msg)
  */
 static void Dalvik_dalvik_system_Taint_log(const u4* args,
@@ -671,6 +659,116 @@ static void Dalvik_dalvik_system_Taint_logPeerFromFd(const u4* args,
     LOGW("TaintLog: logPeerFromFd not yet implemented");
 
     RETURN_VOID();
+}
+
+/*
+ * public static int removeTaintInt(int val, int tag)
+ */
+static void Dalvik_dalvik_system_Taint_removeTaintInt(const u4* args,
+    JValue* pResult)
+{
+    u4 val     = args[0];
+    u4 tag     = args[1];	        /* the tag to remove */
+    u4* rtaint = (u4*) &args[2];    /* pointer to return taint tag */
+    u4 vtaint  = args[3];	        /* the existing taint tag on val */
+    *rtaint = (vtaint & (~tag));    /* AND existing tag with NOT of tag to
+                                       remove */
+    RETURN_INT(val);
+}
+
+/**
+ * public static boolean allowExposeNetwork(FileDescriptor fd, byte[] data);
+ *
+ * See dalvik/vm/native/dalvik_system_VMDebug.c for examples of how to "unpack"
+ * the FileDesciptor object, etc.
+ */
+static void Dalvik_dalvik_system_Taint_allowExposeNetwork(const u4* args,
+    JValue* pResult)
+{
+    LOGW("phornyac: allowExposeNetwork() native: entered");
+    DataObject *destFdObj = (DataObject *) args[0];
+    ArrayObject *dataObj = (ArrayObject *) args[1];
+
+    /* Check that fd is not null (will check arr later): */
+    if (destFdObj == NULL) {
+        dvmThrowException("Ljava/lang/NullPointerException;", NULL);
+        RETURN_BOOLEAN(false);
+    }
+
+    /* Get the destination name (IP adress) from the socket fd: */
+    LOGW("phornyac: allowExposeNetwork() native: getting dvm fields");
+    InstField *hasNameField = dvmFindInstanceField(destFdObj->obj.clazz,
+            "hasName", "Z");  //signature for boolean is Z
+    InstField *nameField = dvmFindInstanceField(destFdObj->obj.clazz,
+            "name", "Ljava/lang/String;");  //signature for String is Ljava/lang/String;, I think
+            //(This seems to work; but use something else to get an object/pointer?? Just "L"?)
+    if ((hasNameField == NULL) || (nameField == NULL)) {
+        dvmThrowException("Ljava/lang/NoSuchFieldException;",
+                "couldn't find hasName or name field in FileDescriptor");
+        RETURN_BOOLEAN(false);
+    }
+    bool hasName = dvmGetFieldBoolean(&destFdObj->obj,
+            hasNameField->byteOffset);
+    StringObject *destNameObj =
+        (StringObject *) dvmGetFieldObject(&destFdObj->obj,
+                nameField->byteOffset);
+        //Is this right??? Get String or char* directly?? Seems to work...
+    char *destName = dvmCreateCstrFromString(destNameObj);
+
+    /* Get the taint tag of the data array: */
+    u4 tag = TAINT_CLEAR;
+    if (dataObj) {
+        tag = dataObj->taint.tag;
+            /* See getTaintByteArray() for this example */
+            /* Actually, is there a way to call
+             * Dalvik_dalvik_system_Taint_getTaintByteArray() or something
+             * instead, to avoid code duplication??
+             */
+
+        /* Debugging: */
+        /* contents is a byte[], so use char... right? */
+        int len = dataObj->length;
+        char *data = (char *) dataObj->contents;
+        int size = 0;
+        char dataStr[1024];
+        while (data && (size < len) && (size < 1023)) {
+            if (data[size] == '\0') {
+                dataStr[size] = ' ';
+            } else {
+                dataStr[size] = data[size];
+            }
+            size++;
+        }
+        dataStr[size] = '\0';
+        LOGW("phornyac: allowExposeNetwork() native: len=%d, dataStr=\"%s\"",
+                len, dataStr);
+    } else {
+        /* Do nothing: assume TAINT_CLEAR if byte[] is null */
+        LOGW("phornyac: allowExposeNetwork() native: dataObj is null, "
+                "expected??");
+    }
+
+    /* Get the name of the calling process: */
+    const char *process_name = get_process_name();
+
+    /* Now we have everything we need: */
+    LOGW("phornyac: allowExposeNetwork() native: source=%s, dest=%s, "
+            "taint=0x%X", process_name, destName, tag);
+
+    /* Get and check policy: */
+    if (tag & TAINT_LOCATION_GPS) {
+        LOGW("phornyac: allowExposeNetwork() native: TAINT_LOCATION_GPS set, "
+                "returning false");
+        RETURN_BOOLEAN(false);
+    } else if (tag & TAINT_LOCATION) {
+        LOGW("phornyac: allowExposeNetwork() native: TAINT_LOCATION set, "
+                "returning true for now");
+        RETURN_BOOLEAN(true);
+    }
+
+    LOGW("phornyac: allowExposeNetwork() native: no checks failed, returning "
+            "true");
+    RETURN_BOOLEAN(true);
 }
 
 const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
@@ -748,13 +846,15 @@ const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
         Dalvik_dalvik_system_Taint_getTaintFile},
     { "addTaintFile",  "(II)V",
         Dalvik_dalvik_system_Taint_addTaintFile},
-    { "removeTaintInt",  "(II)I",
-        Dalvik_dalvik_system_Taint_removeTaintInt},
     { "log",  "(Ljava/lang/String;)V",
         Dalvik_dalvik_system_Taint_log},
     { "logPathFromFd",  "(I)V",
         Dalvik_dalvik_system_Taint_logPathFromFd},
     { "logPeerFromFd",  "(I)V",
         Dalvik_dalvik_system_Taint_logPeerFromFd},
+    { "removeTaintInt",  "(II)I",
+        Dalvik_dalvik_system_Taint_removeTaintInt},
+    { "allowExposeNetwork",  "(Ljava/io/FileDescriptor;[B)Z",
+        Dalvik_dalvik_system_Taint_allowExposeNetwork},
     { NULL, NULL, NULL },
 };

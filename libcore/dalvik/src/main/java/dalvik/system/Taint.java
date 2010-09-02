@@ -19,6 +19,8 @@
 
 package dalvik.system;
 
+import java.io.FileDescriptor;
+
 /**
  * Provides a Taint interface for the Dalvik VM. This class is used for
  * implementing Taint Source and Sink functionality.
@@ -446,4 +448,18 @@ public final class Taint {
      * @return the int with the taint tag removed
      */
     native public static int removeTaintInt(int val, int tag);
+
+    /**
+     * Check if the current process/VM should be allowed to expose the given
+     * data (which may be tainted) over the given socket.
+     * 
+     * @param fd
+     *      file descriptor for the connected socket to send data over.
+     * @param data
+     *      data to be sent over the network.
+     * @return true if the process is allowed to expose the data, false
+     * otherwise or on error.
+     */
+    native public static boolean allowExposeNetwork(FileDescriptor fd,
+            byte[] data);
 }
