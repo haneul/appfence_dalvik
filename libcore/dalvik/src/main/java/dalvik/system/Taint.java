@@ -460,6 +460,22 @@ public final class Taint {
      * @return true if the process is allowed to expose the data, false
      * otherwise or on error.
      */
-    native public static boolean allowExposeNetwork(FileDescriptor fd,
+    public static boolean allowExposeNetwork(FileDescriptor fd,
+            byte[] data) {
+        //...
+        return allowExposeNetworkImpl(fd, data);
+    }
+
+    /**
+     * Native implementation of allowExposeNetwork().
+     *
+     * @param fd
+     *      file descriptor for the connected socket to send data over.
+     * @param data
+     *      data to be sent over the network.
+     * @return true if the process is allowed to expose the data, false
+     * otherwise or on error.
+     */
+    native private static boolean allowExposeNetworkImpl(FileDescriptor fd,
             byte[] data);
 }

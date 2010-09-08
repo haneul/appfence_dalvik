@@ -42,9 +42,12 @@ include $(LOCAL_PATH)/Dvm.mk
 
 # liblog and libcutils are shared for target.
 LOCAL_SHARED_LIBRARIES += \
-	liblog libcutils
+	liblog libcutils libsqlite
 
 LOCAL_MODULE := libdvm
+
+LOCAL_C_INCLUDES += \
+    external/sqlite/dist
 
 include $(BUILD_SHARED_LIBRARY)
 
