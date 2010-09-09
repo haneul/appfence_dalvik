@@ -747,14 +747,22 @@ char *constructQueryString(const char *source) {
 
     //XXX: should sanitize input to this function, or risk SQL injection attack!
 
-    //const char *qs = "SELECT * FROM policy WHERE "
-    //    "src='com.android.browser'";
+    /**
+     * Examples: http://www.sqlite.org/lang_expr.html
+     *   SELECT * FROM policy WHERE src='com.android.browser'
+     *     Get rows for source app com.android.browser
+     *   SELECT * FROM policy WHERE src LIKE '%'
+     *     Get all rows
+     *   SELECT * FROM policy WHERE src='com.android.browser' OR src='*'
+     *     Get rows for source app com.android.browser and for global policy
+     *     that applies to all source apps
+     */
     queryLen = strlen(select) + strlen(" ") + strlen(columns) + 
         strlen(" ") + strlen(from) +
         strlen(" ") + strlen(dbTableName) + strlen(" ") + strlen(where) +
-        strlen(" src=\"") + strlen(source) + strlen("\"") + 1;
+        strlen(" src=\'") + strlen(source) + strlen("\' OR src=\'*\'") + 1;
     queryString = (char *)malloc(queryLen * sizeof(char));
-    snprintf(queryString, queryLen, "%s %s %s %s %s src=\"%s\"",
+    snprintf(queryString, queryLen, "%s %s %s %s %s src=\'%s\' OR src=\'*\'",
             select, columns, from, dbTableName, where, source);
     LOGW("phornyac: constructQueryString(): queryLen=%d, queryString=%s",
             queryLen, queryString);
@@ -780,13 +788,21 @@ void printRow(sqlite3_stmt *stmt){
 }
 
 /**
- * Returns true if the two destination IP addresses match.
- * XXX: enhance this function to consider wildcards/subnets!
+ * Returns true if the two destination IP addresses match, or if the
+ * destination stored in the database row is the wildcard "*".
+ * XXX: enhance this function to consider subnets, partial IP addresses /
+ *   hostnames, etc.!
  */
-bool destinationMatch(const char *dest1, const char *dest2) {
-    LOGW("phornyac: destinationMatch: dest1=%s, dest2=%s",
-            dest1, dest2);
-    return (strcmp(dest1, dest2) == 0);
+bool destinationMatch(const char *curDest, const char *dbDest) {
+    LOGW("phornyac: destinationMatch: curDest=%s, dbDest=%s",
+            curDest, dbDest);
+    
+    if ((strcmp("*", dbDest) == 0) || (strcmp(curDest, dbDest) == 0)) {
+        LOGW("phornyac: destinationMatch: returning true");
+        return true;
+    }
+    LOGW("phornyac: destinationMatch: returning false");
+    return false;
 }
 
 /**
@@ -797,8 +813,10 @@ bool taintMatch(int taint1, int taint2) {
     LOGW("phornyac: taintMatch: taint1=0x%X, taint2=0x%X",
             taint1, taint2);
     if (taint1 & taint2) {
+        LOGW("phornyac: taintMatch: returning true");
         return true;
     }
+    LOGW("phornyac: taintMatch: returning false");
     return false;
 }
 
@@ -862,12 +880,12 @@ int insertDbRow(sqlite3 *db, const char *tableName, const char *source,
     LOGW("phornyac: insertDbRow(): calculated taintString=%s, len=%d",
             taintString, strlen(taintString));
     len = strlen(insertInto) + strlen(" ") + strlen(tableName) + 
-        strlen(" ") + strlen(values) + strlen(" (\"") + strlen(source) +
-        strlen("\", \"") + strlen(dest) + strlen("\", \"") + strlen(taintString) +
-        strlen("\")") + 1;
+        strlen(" ") + strlen(values) + strlen(" (\'") + strlen(source) +
+        strlen("\', \'") + strlen(dest) + strlen("\', \'") + strlen(taintString) +
+        strlen("\')") + 1;
     insertString = malloc(len * sizeof(char));
     /* Must use quotes around column values inside () ! */
-    snprintf(insertString, len, "%s %s %s (\"%s\", \"%s\", \"%s\")",
+    snprintf(insertString, len, "%s %s %s (\'%s\', \'%s\', \'%s\')",
             insertInto, tableName, values, source, dest, taintString);
     LOGW("phornyac: insertDbRow(): constructed insertString=%s", insertString);
 
@@ -994,7 +1012,7 @@ bool doesPolicyAllow(const char *processName, const char *destName, int tag) {
         LOGW("phornyac: doesPolicyAllow(): creating table \"%s\"", dbTableName);
         //XXX: un-hard-code this!
         //XXX: put this in a separate function!
-       err = sqlite3_exec(policyDb, "CREATE TABLE policy (src TEXT, dest TEXT, taint INTEGER)",
+        err = sqlite3_exec(policyDb, "CREATE TABLE policy (src TEXT, dest TEXT, taint INTEGER)",
                 NULL, NULL, &errmsg);
         LOGW("phornyac: doesPolicyAllow(): sqlite3_exec() returned");
         if (err) {
@@ -1029,12 +1047,11 @@ bool doesPolicyAllow(const char *processName, const char *destName, int tag) {
 
         /* Add some simple rows to database / table for now: */
         LOGW("phornyac: doesPolicyAllow(): adding sample rows to database");
-        err = insertDbRow(policyDb, dbTableName, "source1", "dest1", 0);
-        err |= insertDbRow(policyDb, dbTableName, "source2", "dest2", 1);
+        err = insertDbRow(policyDb, dbTableName, "*", "*", TAINT_LOCATION_GPS);
         err |= insertDbRow(policyDb, dbTableName, "com.android.browser",
                 "*", 255);
         err |= insertDbRow(policyDb, dbTableName, "com.android.browser",
-                "72.14.213.99", 255);  //255 = 0xff
+                "72.14.*", 255);  //255 = 0xff
         //(DEBUG: Get all rows in a table: SELECT * FROM Persons)
         if (err) {
             LOGW("phornyac: doesPolicyAllow(): insertDbRow() returned error, "
