@@ -713,48 +713,18 @@ enum dbColumns {    //must start at 0 for indexing into database!
 };
 
 /**
- * Returns true if database structure matches our expectations, false if
- * not.
- */
-bool databaseStructureOk(sqlite3_stmt *stmt) {
-    //Nevermind: these sqlite3_column_xyz() functions return information
-    //  about statement results, not about the table itself
-    return true;
-
-    /**
-     * Check database structure: first column should be source (string),
-     * second column should be destination (string), third column should
-     * be taint (int).
-     */
-    //XXX: DEBUG
-    LOGW("phornyac: databaseStructureOk(): SRC=%d, DEST=%d, TAINT=%d, "
-            "COLUMNS=%d", SRC, DEST, TAINT, COLUMNS);
-    LOGW("phornyac: databaseStructureOk(): SQLITE_TEXT=%d, SQLITE_INTEGER=%d",
-            SQLITE_TEXT, SQLITE_INTEGER);
-    LOGW("phornyac: databaseStructureOk(): col_count=%d, col_type(SRC)=%d, "
-            "col_type(DEST)=%d, col_type(TAINT)=%d", sqlite3_column_count(stmt),
-            sqlite3_column_type(stmt, SRC), sqlite3_column_type(stmt, DEST),
-            sqlite3_column_type(stmt, TAINT));
-
-    if ((sqlite3_column_count(stmt) == COLUMNS) &&
-        (sqlite3_column_type(stmt, SRC) == SQLITE_TEXT) &&
-        (sqlite3_column_type(stmt, DEST) == SQLITE_TEXT) &&
-        (sqlite3_column_type(stmt, TAINT) == SQLITE_INTEGER)) {
-        return true;
-    }
-    return false;
-}
-
-/**
  * Constructs a query string that gets the records/rows of the database matching
  * the given source application name. Returns pointer to a newly-allocated string
  * (which should be freed by the caller) on success, or returns NULL on failure.
  */
 char *constructQueryString(const char *source) {
-    char *select, *from, *where, *queryString;
-    int selectLen, fromLen, whereLen, queryLen;
-    const char *columns="*";
-
+    int queryLen;
+    char *queryString;
+    const char *select = "SELECT";
+    const char *columns = "*";
+    const char *from = "FROM";
+    const char *where = "WHERE";
+ 
     LOGW("phornyac: constructQueryString(): entered");
     /**
      * Construct the SQL query string:
@@ -775,31 +745,19 @@ char *constructQueryString(const char *source) {
      * http://www.w3schools.com/sql/sql_and_or.asp
      */
 
-//    selectString = "SELECT *";
-//    snprintf(selectString, selectLen, "SELECT %s", columns);
-//      //XXX: only select dest, taint columns?
-//      //XXX: wildcards??
-//    queryLen = strlen()...
-//      //Don't forget to add 1 for null-zero!
-//    queryString = malloc(queryLen * sizeof(char));
-//    snprintf(queryString, queryLen, "%s %s %s", selectString, fromString,
-//            whereString);
-//    free(selectString);
-//    free(fromString);
-//    free(whereString);
-
     //XXX: should sanitize input to this function, or risk SQL injection attack!
 
-    //Simple hardcoded query string to start:
-    //  XXX: fix this so it's not hardcoded!
-    const char *qs = "SELECT * FROM policy WHERE "
-        "src='com.android.browser'";
-        //"src='com.google.android.apps.maps'";
-    queryLen = strlen(qs) + 1;
+    //const char *qs = "SELECT * FROM policy WHERE "
+    //    "src='com.android.browser'";
+    queryLen = strlen(select) + strlen(" ") + strlen(columns) + 
+        strlen(" ") + strlen(from) +
+        strlen(" ") + strlen(dbTableName) + strlen(" ") + strlen(where) +
+        strlen(" src=\"") + strlen(source) + strlen("\"") + 1;
     queryString = (char *)malloc(queryLen * sizeof(char));
-    snprintf(queryString, queryLen, "%s", qs);
-    LOGW("phornyac: constructQueryString(): queryString=%s",
-            queryString);
+    snprintf(queryString, queryLen, "%s %s %s %s %s src=\"%s\"",
+            select, columns, from, dbTableName, where, source);
+    LOGW("phornyac: constructQueryString(): queryLen=%d, queryString=%s",
+            queryLen, queryString);
     return queryString;
 }
 
@@ -963,7 +921,7 @@ bool doesPolicyAllow(const char *processName, const char *destName, int tag) {
     char *queryString;
     int queryLen;
     const char *columns="*";
-    char **errmsg = NULL;
+    char *errmsg = NULL;
     bool match;
     bool retval = false;
     int err;
@@ -1024,7 +982,8 @@ bool doesPolicyAllow(const char *processName, const char *destName, int tag) {
             retval = false;
             goto out;
         }
-        LOGW("phornyac: doesPolicyAllow(): sqlite3_open() succeeded");
+        LOGW("phornyac: doesPolicyAllow(): sqlite3_open() succeeded, policyDb=%p",
+                policyDb);
         /* XXX: We never close the database connection: is this ok? */
 
         /**
@@ -1035,11 +994,34 @@ bool doesPolicyAllow(const char *processName, const char *destName, int tag) {
         LOGW("phornyac: doesPolicyAllow(): creating table \"%s\"", dbTableName);
         //XXX: un-hard-code this!
         //XXX: put this in a separate function!
-        err = sqlite3_exec(policyDb, "CREATE TABLE policy (src TEXT, dest TEXT, taint INTEGER)",
-                NULL, NULL, errmsg);
+       err = sqlite3_exec(policyDb, "CREATE TABLE policy (src TEXT, dest TEXT, taint INTEGER)",
+                NULL, NULL, &errmsg);
+        LOGW("phornyac: doesPolicyAllow(): sqlite3_exec() returned");
         if (err) {
-            LOGW("phornyac: doesPolicyAllow(): sqlite3_exec(CREATE TABLE) "
-                    "returned error \"%s\", so returning false", *errmsg);
+            if (errmsg) {
+                /**
+                 * "To avoid memory leaks, the application should invoke
+                 *  sqlite3_free() on error message strings returned through the
+                 *  5th parameter of of sqlite3_exec() after the error message
+                 *  string is no longer needed. If the 5th parameter to
+                 *  sqlite3_exec() is not NULL and no errors occur, then
+                 *  sqlite3_exec() sets the pointer in its 5th parameter to NULL
+                 *  before returning."
+                 */
+                LOGW("phornyac: doesPolicyAllow(): sqlite3_exec(CREATE TABLE) "
+                        "returned error \"%s\", so returning false", errmsg);
+                /**
+                 * For some reason, when I open browser, then open maps app, I get this
+                 * error from maps:
+                 *   "W/dalvikvm(  475): phornyac: doesPolicyAllow(): sqlite3_exec(CREATE
+                 *    TABLE) returned error "table policy already exists", so   returning
+                 *    false
+                 */
+                sqlite3_free(errmsg);
+            } else {
+                LOGW("phornyac: doesPolicyAllow(): sqlite3_exec(CREATE TABLE) "
+                        "returned error, errmsg=NULL");
+            }
             policyDb = NULL;  /* set back to NULL so we'll retry after error */
             retval = false;
             goto out;
@@ -1090,13 +1072,12 @@ bool doesPolicyAllow(const char *processName, const char *destName, int tag) {
      * Construct a query string to get all of the records matching the current
      * application name: 
      */
-    queryString = constructQueryString(processName);
+    queryString = constructQueryString(processName);  /* Don't forget to free! */
     if (queryString == NULL) {
         LOGW("phornyac: doesPolicyAllow(): constructQueryString returned NULL, "
                 "so returning false");
         retval = false;
         goto out;
-        //return false;
     }
     LOGW("phornyac: doesPolicyAllow(): constructQueryString returned string %s",
                 queryString);
