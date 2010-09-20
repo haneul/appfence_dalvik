@@ -47,6 +47,14 @@ public final class Taint {
     public static final int TAINT_HISTORY       = 0x00008000;
 
     /**
+     * Should we enforce the current exposure policy or not.
+     * For now, defaults to true on every boot, because it is
+     * difficult / impossible to access the Android settings
+     * (android.provider.Settings) from here.
+     */
+    private static boolean enforcePolicy = true;
+
+    /**
      * Updates the target String's taint tag.
      *
      * @param str
@@ -450,6 +458,23 @@ public final class Taint {
     native public static int removeTaintInt(int val, int tag);
 
     /**
+     * Gets the value of the enforcePolicy member.
+     */
+    public static boolean getEnforcePolicy() {
+        return enforcePolicy;
+    }
+
+
+    /**
+     * Turns enforcement of the current exposure policy on or off.
+     */
+    public static void setEnforcePolicy(boolean newSetting) {
+        log("phornyac: setPolicyEnforcement(): setting enforcePolicy from "
+                +enforcePolicy+" to "+newSetting);
+        enforcePolicy = newSetting;
+    }
+
+    /**
      * Check if the current process/VM should be allowed to expose the given
      * data (which may be tainted) over the given socket.
      * 
@@ -462,8 +487,18 @@ public final class Taint {
      */
     public static boolean allowExposeNetwork(FileDescriptor fd,
             byte[] data) {
-        //...
-        return allowExposeNetworkImpl(fd, data);
+        /**
+         * Check exposure policy database if our current settings tell us to,
+         * otherwise always return true to allow all exposure.
+         */
+        if (enforcePolicy) {
+            log("phornyac: allowExposeNetwork(): enforcePolicy is true, "+
+                    "calling allowExposeNetworkImpl()");
+            return allowExposeNetworkImpl(fd, data);
+        }
+        log("phornyac: allowExposeNetwork(): enforcePolicy is false, "+
+                "returning true");
+        return true;
     }
 
     /**

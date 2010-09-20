@@ -45,6 +45,24 @@ import dalvik.system.Taint;
  */
 final class OSNetworkSystem implements INetworkSystem {
 
+    /**
+     * Possible actions to take when a network transmission violates
+     * our exposure policy.
+     * XXX: does this belong here, in this class?
+     */
+    private enum ViolationAction {
+        EXCEPTION,       /* Block transmission and throw a
+                          * SocketException */
+        UNAVAILABLE,     /* Block transmission and pretend network
+                          * connection is unavailable */
+        EXPECTED,        /* Block transmission but return expected
+                          * result */
+        LOG,             /* Allow transmission, just log the
+                          * violation */
+    };
+    /* Hard-coded for now... */
+    private ViolationAction violationAction = ViolationAction.EXPECTED;
+
     private static final int ERRORCODE_SOCKET_TIMEOUT = -209;
     private static final int ERRORCODE_SOCKET_INTERRUPTED = -208;
 
@@ -545,11 +563,41 @@ final class OSNetworkSystem implements INetworkSystem {
             return sendStreamImpl(fd, data, offset, count);
         } else {
             Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
-                    "allowExposeNetwork() returned false, throwing a "+
-                    "SocketException");
-            throw new SocketException("not allowed to expose data with taint "+
-                    "0x"+Integer.toHexString(tag));
+                    "allowExposeNetwork() returned false");
+            switch (violationAction) {
+                case EXCEPTION:
+                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                            "case ViolationAction.EXCEPTION");
+                    throw new SocketException("not allowed to expose data "+
+                            "with taint 0x"+Integer.toHexString(tag));
+                case UNAVAILABLE:
+                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                            "case ViolationAction.UNAVAILABLE");
+                    throw new SocketException("not allowed to expose data "+
+                            "with taint 0x"+Integer.toHexString(tag));
+                case EXPECTED:
+                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                            "case ViolationAction.EXPECTED");
+                    /**
+                     * On success, sendStreamImpl() returns count, the number of
+                     * bytes sent. So, we return this number, but don't actually
+                     * call sendStreamImpl().
+                     */
+                    return count;
+                case LOG:
+                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                            "case ViolationAction.LOG");
+                    break;
+                default:
+                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                            "case default");
+                    break;
+            }
         }
+        /* Shouldn't reach here... */
+        Taint.log("phornyac: OSNetworkSystem.sendStream(): reached code we "+
+                "shouldn't reach! Returning 0");
+        return 0;
     }
 
     static native int sendStreamImpl(FileDescriptor fd, byte[] data,

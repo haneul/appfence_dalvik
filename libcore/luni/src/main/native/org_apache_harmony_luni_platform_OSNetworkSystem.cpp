@@ -1185,6 +1185,8 @@ static int sockConnectWithTimeout(int handle, struct sockaddr_storage addr,
     socklen_t errorValLen = sizeof(int);
     struct selectFDSet *context = NULL;
 
+    //LOGW("phornyac: OSNetworkSystem.cpp sockConnectWithTimeout(): "
+    //        "entered");
     if (SOCKET_STEP_START == step) {
 
         context = (struct selectFDSet *) ctxt;
@@ -1990,6 +1992,8 @@ static void osNetworkSystem_connectStreamWithTimeoutSocketImpl(JNIEnv* env,
         jclass clazz, jobject fileDescriptor, jint remotePort, jint timeout,
         jint trafficClass, jobject inetAddr) {
     // LOGD("ENTER connectStreamWithTimeoutSocketImpl");
+    //LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
+    //        "entered");
 
     int result = 0;
     int handle;
@@ -2036,12 +2040,16 @@ static void osNetworkSystem_connectStreamWithTimeoutSocketImpl(JNIEnv* env,
         return;
     }
 
+    //LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
+    //        "calling sockConnectWithTimeout() 1");
     result = sockConnectWithTimeout(handle, address, 0, SOCKET_STEP_START, context);
     if (0 == result) {
         /* ok we connected right away so we are done */
         sockConnectWithTimeout(handle, address, 0, SOCKET_STEP_DONE, context);
         goto bail;
     } else if (result != SOCKERR_NOTCONNECTED) {
+        //LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
+        //        "calling sockConnectWithTimeout() 2");
         sockConnectWithTimeout(handle, address, 0, SOCKET_STEP_DONE,
                                context);
         /* we got an error other than NOTCONNECTED so we cannot continue */
@@ -2049,6 +2057,8 @@ static void osNetworkSystem_connectStreamWithTimeoutSocketImpl(JNIEnv* env,
             jniThrowException(env, "java/lang/SecurityException",
                               netLookupErrorString(result));
         } else {
+            //LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
+            //        "throwSocketException() 1");
             throwSocketException(env, result);
         }
         goto bail;
@@ -2061,6 +2071,8 @@ static void osNetworkSystem_connectStreamWithTimeoutSocketImpl(JNIEnv* env,
          * ok now try and connect. Depending on the platform this may sleep
          * for up to passedTimeout milliseconds
          */
+        //LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
+        //        "calling sockConnectWithTimeout() 3");
         result = sockConnectWithTimeout(handle, address, passedTimeout,
                 SOCKET_STEP_CHECK, context);
 
@@ -2107,6 +2119,8 @@ static void osNetworkSystem_connectStreamWithTimeoutSocketImpl(JNIEnv* env,
                 remainingTimeout = 100;
             }
         } else {
+            //LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
+            //        "calling sockConnectWithTimeout() 4");
             sockConnectWithTimeout(handle, address, remainingTimeout,
                                    SOCKET_STEP_DONE, context);
             if ((SOCKERR_CONNRESET == result) ||
@@ -2114,12 +2128,21 @@ static void osNetworkSystem_connectStreamWithTimeoutSocketImpl(JNIEnv* env,
                 (SOCKERR_ADDRNOTAVAIL == result) ||
                 (SOCKERR_ADDRINUSE == result) ||
                 (SOCKERR_ENETUNREACH == result)) {
+                //if (SOCKERR_ENETUNREACH == result) {
+                //    LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
+                //        "result == SOCKERR_ENETUNREACH");
+                //} else {
+                //    LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
+                //        "result == SOCKERR_somethingelse");
+                //}
                 jniThrowException(env, "java/net/ConnectException",
                                   netLookupErrorString(result));
             } else if (SOCKERR_EACCES == result) {
                 jniThrowException(env, "java/lang/SecurityException",
                                   netLookupErrorString(result));
             } else {
+                //LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
+                //        "throwSocketException(result) 2");
                 throwSocketException(env, result);
             }
             goto bail;
