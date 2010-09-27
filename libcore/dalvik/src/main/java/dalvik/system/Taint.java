@@ -491,7 +491,9 @@ public final class Taint {
          * Check exposure policy database if our current settings tell us to,
          * otherwise always return true to allow all exposure.
          */
-        if (enforcePolicy) {
+        //XXX: adjust
+        //if (enforcePolicy) {
+        if (true) {
             log("phornyac: allowExposeNetwork(): enforcePolicy is true, "+
                     "calling allowExposeNetworkImpl()");
             return allowExposeNetworkImpl(fd, data);

@@ -31,6 +31,7 @@
 #include <string.h>
 #include <cutils/process_name.h>
 #include <policydb.h>
+#include <cutils/sockets.h>
 
 #define TAINT_XATTR_NAME "user.taint"
 
@@ -683,6 +684,18 @@ static void Dalvik_dalvik_system_Taint_removeTaintInt(const u4* args,
 }
 
 /**
+ * File descriptor for socket that connects to "policyd" daemon server
+ * that makes exposure policy decisions. Initialized to -1 to indicate
+ * that we haven't connected yet.
+ */
+static int policy_socket = -1;
+
+/* Name and namespace for policy daemon server: */
+#define SERVERNAME "zygote"
+#define NSPACE ANDROID_SOCKET_NAMESPACE_RESERVED
+#define SOCKTYPE SOCK_STREAM  //SOCK_DGRAM
+
+/**
  * private static boolean allowExposeNetworkImpl(FileDescriptor fd, byte[] data);
  *
  * See dalvik/vm/native/dalvik_system_VMDebug.c for examples of how to "unpack"
@@ -692,6 +705,7 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     JValue* pResult)
 {
     LOGW("phornyac: allowExposeNetworkImpl(): entered");
+    int err = 0;
     DataObject *destFdObj = (DataObject *) args[0];
     ArrayObject *dataObj = (ArrayObject *) args[1];
 
@@ -701,7 +715,26 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
         RETURN_BOOLEAN(false);
     }
 
-    /* Get the destination name (IP adress) from the socket fd: */
+    /* Connect to the policyd server, if we haven't already: */
+    if (policy_socket == -1) {
+        LOGW("phornyac: allowExposeNetworkImpl(): policy_socket uninitialized, "
+                "calling socket_local_client(%s, %d, %d)",
+                SERVERNAME, NSPACE, SOCKTYPE);
+        err = socket_local_client(SERVERNAME, NSPACE, SOCKTYPE);
+        if (err == -1) {
+            LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
+                    "failed with err=%d", err);
+        } else {
+            policy_socket = err;
+            LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
+                    "succeeded, setting policy_socket=%d", policy_socket);
+        }
+    } else {
+        LOGW("phornyac: allowExposeNetworkImpl(): policy_socket already "
+                "connected to %d", policy_socket);
+    }
+
+    /* Get the destination name (IP adress) from the destination socket fd: */
     LOGW("phornyac: allowExposeNetworkImpl(): getting dvm fields");
     InstField *hasNameField = dvmFindInstanceField(destFdObj->obj.clazz,
             "hasName", "Z");  //signature for boolean is Z
