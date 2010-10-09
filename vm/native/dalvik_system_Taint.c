@@ -691,9 +691,9 @@ static void Dalvik_dalvik_system_Taint_removeTaintInt(const u4* args,
 static int policy_socket = -1;
 
 /* Name and namespace for policy daemon server: */
-#define SERVERNAME "zygote"
+#define SERVERNAME "policyd" //"zygote"
 #define NSPACE ANDROID_SOCKET_NAMESPACE_RESERVED
-#define SOCKTYPE SOCK_STREAM  //SOCK_DGRAM
+#define SOCKTYPE SOCK_STREAM  //alternative: SOCK_DGRAM
 
 /**
  * private static boolean allowExposeNetworkImpl(FileDescriptor fd, byte[] data);
