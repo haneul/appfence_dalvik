@@ -691,10 +691,29 @@ static void Dalvik_dalvik_system_Taint_removeTaintInt(const u4* args,
  */
 static int policy_socket = -1;
 
-/* Name and namespace for policy daemon server: */
-#define SERVERNAME "policyd" //"zygote"
-#define NSPACE ANDROID_SOCKET_NAMESPACE_RESERVED
-#define SOCKTYPE SOCK_STREAM  //alternative: SOCK_DGRAM
+/**
+ * private static void setEnforcePolicyImpl(boolean newSetting);
+ *
+ * See dalvik/vm/native/dalvik_system_VMDebug.c for examples of how to "unpack"
+ * the FileDesciptor object, etc.
+ */
+static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
+    JValue* pResult)
+{
+    LOGW("phornyac: setEnforcePolicyImpl: entered");
+    //    u4 val     = args[0];
+    //    u4 tag     = args[1];    /* the tag to add */
+    //    u4* rtaint = (u4*) &args[2]; /* pointer to return taint tag */
+    //    u4 vtaint  = args[3];    /* the existing taint tag on val */
+    //    *rtaint = (vtaint | tag);
+    //    RETURN_BOOLEAN(val);
+    u4 newSetting = args[0];
+    LOGW("phornyac: setEnforcePolicyImpl: newSetting=%d", newSetting);
+
+
+    LOGW("phornyac: setEnforcePolicyImpl: reached end, returning void");
+    RETURN_VOID();
+}
 
 /**
  * private static boolean allowExposeNetworkImpl(FileDescriptor fd, byte[] data);
@@ -725,8 +744,8 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     if (policy_socket == -1) {
         LOGW("phornyac: allowExposeNetworkImpl(): policy_socket uninitialized, "
                 "calling socket_local_client(%s, %d, %d)",
-                SERVERNAME, NSPACE, SOCKTYPE);
-        err = socket_local_client(SERVERNAME, NSPACE, SOCKTYPE);
+                POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
+        err = socket_local_client(POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
         if (err == -1) {
             LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
                     "failed with err=%d", err);
@@ -924,6 +943,8 @@ const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
         Dalvik_dalvik_system_Taint_logPeerFromFd},
     { "removeTaintInt",  "(II)I",
         Dalvik_dalvik_system_Taint_removeTaintInt},
+    { "setEnforcePolicyImpl",  "(Z)V",
+        Dalvik_dalvik_system_Taint_setEnforcePolicyImpl},
     { "allowExposeNetworkImpl",  "(Ljava/io/FileDescriptor;[B)Z",
         Dalvik_dalvik_system_Taint_allowExposeNetworkImpl},
     { NULL, NULL, NULL },

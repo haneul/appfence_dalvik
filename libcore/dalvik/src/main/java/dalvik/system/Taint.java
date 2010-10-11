@@ -472,7 +472,22 @@ public final class Taint {
         log("phornyac: setPolicyEnforcement(): setting enforcePolicy from "
                 +enforcePolicy+" to "+newSetting);
         enforcePolicy = newSetting;
+        log("phornyac: setPolicyEnforcement(): forget that previous log msg, "+
+                "calling setEnforcePolicyImpl("+newSetting+")");
+        setEnforcePolicyImpl(newSetting);
     }
+
+    /**
+     * Native implementation of setEnforcePolicy().
+     *
+     * @param fd
+     *      file descriptor for the connected socket to send data over.
+     * @param data
+     *      data to be sent over the network.
+     * @return true if the process is allowed to expose the data, false
+     * otherwise or on error.
+     */
+    native private static void setEnforcePolicyImpl(boolean newSetting);
 
     /**
      * Check if the current process/VM should be allowed to expose the given
