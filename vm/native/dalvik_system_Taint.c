@@ -35,6 +35,7 @@
 #include <cutils/policyd.h>
 
 #define TAINT_XATTR_NAME "user.taint"
+typedef char byte;
 
 /*
  * public static void addTaintString(String str, int tag)
@@ -685,11 +686,15 @@ static void Dalvik_dalvik_system_Taint_removeTaintInt(const u4* args,
 }
 
 /**
- * File descriptor for socket that connects to "policyd" daemon server
- * that makes exposure policy decisions. Initialized to -1 to indicate
- * that we haven't connected yet.
+ * File descriptors for sockets that connect to "policyd" daemon server
+ * that makes exposure policy decisions. policy_update_sockfd should only
+ * be used by the Settings app (this is / should be / will be enforced by
+ * the user+group settings of the socket); policy_sockfd is used by all
+ * other apps.
+ * Initialized to -1 to indicate that we haven't connected yet.
  */
-static int policy_socket = -1;
+static int policy_update_sockfd = -1;
+static int policy_sockfd = -1;
 
 /**
  * private static void setEnforcePolicyImpl(boolean newSetting);
@@ -700,16 +705,62 @@ static int policy_socket = -1;
 static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
     JValue* pResult)
 {
+    int err = 0;
+    unsigned int bytes_read;
+    int read_ret;
+    size_t msg_size;
+    byte *buf;
+    policyd_msg msg_read;
+    u4 newSetting;
+
     LOGW("phornyac: setEnforcePolicyImpl: entered");
-    //    u4 val     = args[0];
-    //    u4 tag     = args[1];    /* the tag to add */
-    //    u4* rtaint = (u4*) &args[2]; /* pointer to return taint tag */
-    //    u4 vtaint  = args[3];    /* the existing taint tag on val */
-    //    *rtaint = (vtaint | tag);
-    //    RETURN_BOOLEAN(val);
-    u4 newSetting = args[0];
+    newSetting = args[0];
     LOGW("phornyac: setEnforcePolicyImpl: newSetting=%d", newSetting);
 
+    /* Connect to the policyd server, if we haven't already: */
+    if (policy_update_sockfd == -1) {
+        LOGW("phornyac: setEnforcePolicyImpl: policy_update_sockfd "
+                "uninitialized, calling socket_local_client(%s, %d, %d)",
+                POLICYD_UPDATESOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
+        err = socket_local_client(POLICYD_UPDATESOCK, POLICYD_NSPACE,
+                POLICYD_SOCKTYPE);
+        if (err == -1) {
+            LOGW("phornyac: setEnforcePolicyImpl: socket_local_connect() "
+                    "failed with err=%d", err);
+        } else {
+            policy_update_sockfd = err;
+            LOGW("phornyac: setEnforcePolicyImpl: socket_local_connect() "
+                    "succeeded, setting policy_update_sockfd=%d",
+                    policy_update_sockfd);
+        }
+    } else {
+        LOGW("phornyac: setEnforcePolicyImpl: policy_update_sockfd was "
+                "already set to %d",
+                policy_update_sockfd);
+    }
+
+    bytes_read = 0;
+    msg_size = sizeof(msg_read);
+    buf = (char *)&msg_read;
+    read_ret = -1;
+    while ((bytes_read < msg_size) && (read_ret != 0)) {
+        LOGW("phornyac: setEnforcePolicyImpl: calling read() "
+                "on policy_update_sockfd, msg_size=%d, bytes_read=%d",
+                msg_size, bytes_read);
+        read_ret = read(policy_update_sockfd, buf, msg_size);
+        if (read_ret < 0) {
+            LOGW("phornyac: setEnforcePolicyImpl: read() "
+                    "returned read_ret=%d, exiting while loop",
+                    read_ret);
+            break;  /* exit while loop */
+        }
+        LOGW("phornyac: setEnforcePolicyImpl: read() "
+                "returned %d bytes read", read_ret);
+        bytes_read += read_ret;
+        buf += read_ret;
+    }
+    LOGW("phornyac: setEnforcePolicyImpl: "
+            "msg_read contents: %s", msg_read.msg);
 
     LOGW("phornyac: setEnforcePolicyImpl: reached end, returning void");
     RETURN_VOID();
@@ -729,7 +780,7 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     unsigned int bytes_read;
     int read_ret;
     size_t msg_size;
-    char *buf; /* Doesn't really point to a char array, but want byte-size */
+    byte *buf;
     policyd_msg msg_read;
     DataObject *destFdObj = (DataObject *) args[0];
     ArrayObject *dataObj = (ArrayObject *) args[1];
@@ -741,8 +792,8 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     }
 
     /* Connect to the policyd server, if we haven't already: */
-    if (policy_socket == -1) {
-        LOGW("phornyac: allowExposeNetworkImpl(): policy_socket uninitialized, "
+    if (policy_sockfd == -1) {
+        LOGW("phornyac: allowExposeNetworkImpl(): policy_sockfd uninitialized, "
                 "calling socket_local_client(%s, %d, %d)",
                 POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
         err = socket_local_client(POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
@@ -750,9 +801,9 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
             LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
                     "failed with err=%d", err);
         } else {
-            policy_socket = err;
+            policy_sockfd = err;
             LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
-                    "succeeded, setting policy_socket=%d", policy_socket);
+                    "succeeded, setting policy_sockfd=%d", policy_sockfd);
 
             bytes_read = 0;
             msg_size = sizeof(msg_read);
@@ -760,9 +811,9 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
             read_ret = -1;
             while ((bytes_read < msg_size) && (read_ret != 0)) {
                 LOGW("phornyac: allowExposeNetworkImpl(): calling read() "
-                        "on policy_socket, msg_size=%d, bytes_read=%d",
+                        "on policy_sockfd, msg_size=%d, bytes_read=%d",
                         msg_size, bytes_read);
-                read_ret = read(policy_socket, buf, msg_size);
+                read_ret = read(policy_sockfd, buf, msg_size);
                 if (read_ret < 0) {
                     LOGW("phornyac: allowExposeNetworkImpl(): read() "
                             "returned read_ret=%d, doing nothing", read_ret);
@@ -777,8 +828,8 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
                     "msg_read contents: %s", msg_read.msg);
         }
     } else {
-        LOGW("phornyac: allowExposeNetworkImpl(): policy_socket already "
-                "connected to %d", policy_socket);
+        LOGW("phornyac: allowExposeNetworkImpl(): policy_sockfd already "
+                "connected to %d", policy_sockfd);
     }
 
     /* Get the destination name (IP adress) from the destination socket fd: */
