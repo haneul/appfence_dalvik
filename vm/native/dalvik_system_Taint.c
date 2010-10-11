@@ -32,6 +32,7 @@
 #include <cutils/process_name.h>
 #include <policydb.h>
 #include <cutils/sockets.h>
+#include <cutils/policyd.h>
 
 #define TAINT_XATTR_NAME "user.taint"
 
@@ -706,6 +707,11 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
 {
     LOGW("phornyac: allowExposeNetworkImpl(): entered");
     int err = 0;
+    unsigned int bytes_read;
+    int read_ret;
+    size_t msg_size;
+    char *buf; /* Doesn't really point to a char array, but want byte-size */
+    policyd_msg msg_read;
     DataObject *destFdObj = (DataObject *) args[0];
     ArrayObject *dataObj = (ArrayObject *) args[1];
 
@@ -728,6 +734,28 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
             policy_socket = err;
             LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
                     "succeeded, setting policy_socket=%d", policy_socket);
+
+            bytes_read = 0;
+            msg_size = sizeof(msg_read);
+            buf = (char *)&msg_read;
+            read_ret = -1;
+            while ((bytes_read < msg_size) && (read_ret != 0)) {
+                LOGW("phornyac: allowExposeNetworkImpl(): calling read() "
+                        "on policy_socket, msg_size=%d, bytes_read=%d",
+                        msg_size, bytes_read);
+                read_ret = read(policy_socket, buf, msg_size);
+                if (read_ret < 0) {
+                    LOGW("phornyac: allowExposeNetworkImpl(): read() "
+                            "returned read_ret=%d, doing nothing", read_ret);
+                    break;  /* exit while loop */
+                }
+                LOGW("phornyac: allowExposeNetworkImpl(): read() "
+                        "returned %d bytes read", read_ret);
+                bytes_read += read_ret;
+                buf += read_ret;
+            }
+            LOGW("phornyac: allowExposeNetworkImpl(): "
+                    "msg_read contents: %s", msg_read.msg);
         }
     } else {
         LOGW("phornyac: allowExposeNetworkImpl(): policy_socket already "
