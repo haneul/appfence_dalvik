@@ -743,7 +743,8 @@ static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
     msg_size = sizeof(msg_read);
     buf = (char *)&msg_read;
     read_ret = -1;
-    while ((bytes_read < msg_size) && (read_ret != 0)) {
+    //while ((bytes_read < msg_size) && (read_ret != 0)) {
+    while (0) {  /* This was test code: */
         LOGW("phornyac: setEnforcePolicyImpl: calling read() "
                 "on policy_update_sockfd, msg_size=%d, bytes_read=%d",
                 msg_size, bytes_read);
@@ -759,8 +760,8 @@ static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
         bytes_read += read_ret;
         buf += read_ret;
     }
-    LOGW("phornyac: setEnforcePolicyImpl: "
-            "msg_read contents: %s", msg_read.msg);
+    //LOGW("phornyac: setEnforcePolicyImpl: "
+    //        "msg_read contents: %s", msg_read.msg);
 
     LOGW("phornyac: setEnforcePolicyImpl: reached end, returning void");
     RETURN_VOID();
@@ -809,7 +810,8 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
             msg_size = sizeof(msg_read);
             buf = (char *)&msg_read;
             read_ret = -1;
-            while ((bytes_read < msg_size) && (read_ret != 0)) {
+            //while ((bytes_read < msg_size) && (read_ret != 0)) {
+            while (0) {  /* test code */
                 LOGW("phornyac: allowExposeNetworkImpl(): calling read() "
                         "on policy_sockfd, msg_size=%d, bytes_read=%d",
                         msg_size, bytes_read);
@@ -824,8 +826,8 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
                 bytes_read += read_ret;
                 buf += read_ret;
             }
-            LOGW("phornyac: allowExposeNetworkImpl(): "
-                    "msg_read contents: %s", msg_read.msg);
+            //LOGW("phornyac: allowExposeNetworkImpl(): "
+            //        "msg_read contents: %s", msg_read.msg);
         }
     } else {
         LOGW("phornyac: allowExposeNetworkImpl(): policy_sockfd already "
@@ -894,21 +896,6 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
 
     /* Get and check policy: */
     RETURN_BOOLEAN(doesPolicyAllow(processName, destName, tag));
-
-    //XXX: unreachable code, remove!
-    if (tag & TAINT_LOCATION_GPS) {
-        LOGW("phornyac: allowExposeNetworkImpl(): TAINT_LOCATION_GPS set, "
-                "returning false");
-        RETURN_BOOLEAN(false);
-    } else if (tag & TAINT_LOCATION) {
-        LOGW("phornyac: allowExposeNetworkImpl(): TAINT_LOCATION set, "
-                "returning true for now");
-        RETURN_BOOLEAN(true);
-    }
-
-    LOGW("phornyac: allowExposeNetworkImpl(): no checks failed, returning "
-            "true");
-    RETURN_BOOLEAN(true);
 }
 
 const DalvikNativeMethod dvm_dalvik_system_Taint[] = {

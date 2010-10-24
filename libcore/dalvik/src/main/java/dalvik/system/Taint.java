@@ -469,11 +469,8 @@ public final class Taint {
      * Turns enforcement of the current exposure policy on or off.
      */
     public static void setEnforcePolicy(boolean newSetting) {
-        log("phornyac: setPolicyEnforcement(): setting enforcePolicy from "
-                +enforcePolicy+" to "+newSetting);
-        enforcePolicy = newSetting;
-        log("phornyac: setPolicyEnforcement(): forget that previous log msg, "+
-                "calling setEnforcePolicyImpl("+newSetting+")");
+        log("phornyac: setPolicyEnforcement(): calling native "+
+                "setEnforcePolicyImpl("+newSetting+")");
         setEnforcePolicyImpl(newSetting);
     }
 
