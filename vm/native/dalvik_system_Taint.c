@@ -845,8 +845,8 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
 
     LOGW("phornyac: allowExposeNetworkImpl(): calling "
             "construct_policy_req()");
-    ret = construct_policy_req(&policy_request, processName,
-            destName, tag);
+    ret = construct_policy_req(&policy_request, POLICY_REQ_QUERY,
+            processName, destName, tag);
     if (ret < 0) {
         LOGW("phornyac: allowExposeNetworkImpl(): construct_policy_req() "
                 "returned ret=%d, returning false", ret);
@@ -873,10 +873,27 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
             "returned success, response code=%d",
             policy_response.response_code);
 
-    //XXX: handle response codes appropriately!!!
-    LOGW("phornyac: allowExposeNetworkImpl(): TODO: handle response code "
-            "appropriately! For now, returning true");
-    RETURN_BOOLEAN(true);
+    LOGW("phornyac: allowExposeNetworkImpl(): switching on response code");
+    switch (policy_response.response_code) {
+    case POLICY_RESP_ALLOW:
+        LOGW("phornyac: allowExposeNetworkImpl(): case POLICY_RESP_ALLOW, "
+                "returning true");
+        RETURN_BOOLEAN(true);
+        break;
+    case POLICY_RESP_BLOCK:
+        LOGW("phornyac: allowExposeNetworkImpl(): case POLICY_RESP_BLOCK, "
+                "returning false");
+        RETURN_BOOLEAN(false);
+        break;
+    default:
+        LOGW("phornyac: allowExposeNetworkImpl(): default case!?!, "
+                "returning false");
+        RETURN_BOOLEAN(false);
+        break;
+    }
+    LOGW("phornyac: allowExposeNetworkImpl(): reached end, shouldn't be here, "
+            "returning false");
+    RETURN_BOOLEAN(false);
 }
 
 const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
