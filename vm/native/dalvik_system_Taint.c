@@ -704,12 +704,10 @@ static int policy_sockfd = -1;
 static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
     JValue* pResult)
 {
-    int err = 0;
-    unsigned int bytes_read;
-    int read_ret;
-    size_t msg_size;
-    byte *buf;
-    policy_req msg_read;
+    int ret = 0;
+    policy_req request;
+    policy_resp response;
+    int request_code, response_code;
     u4 newSetting;
 
     LOGW("phornyac: setEnforcePolicyImpl: entered");
@@ -721,13 +719,13 @@ static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
         LOGW("phornyac: setEnforcePolicyImpl: policy_update_sockfd "
                 "uninitialized, calling socket_local_client(%s, %d, %d)",
                 POLICYD_UPDATESOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
-        err = socket_local_client(POLICYD_UPDATESOCK, POLICYD_NSPACE,
+        ret = socket_local_client(POLICYD_UPDATESOCK, POLICYD_NSPACE,
                 POLICYD_SOCKTYPE);
-        if (err == -1) {
+        if (ret == -1) {
             LOGW("phornyac: setEnforcePolicyImpl: socket_local_connect() "
-                    "failed with err=%d", err);
+                    "failed with ret=%d", ret);
         } else {
-            policy_update_sockfd = err;
+            policy_update_sockfd = ret;
             LOGW("phornyac: setEnforcePolicyImpl: socket_local_connect() "
                     "succeeded, setting policy_update_sockfd=%d",
                     policy_update_sockfd);
@@ -738,7 +736,46 @@ static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
                 policy_update_sockfd);
     }
 
-    LOGW("phornyac: setEnforcePolicyImpl: reached end, returning void");
+    /* Set up the policy request: */
+    if (newSetting == 0) {
+        LOGW("phornyac: setEnforcePolicyImpl: newSetting is 0, so using "
+                "request_code POLICY_UPDATE_DISABLE");
+        request_code = POLICY_UPDATE_DISABLE;
+    } else {
+        LOGW("phornyac: setEnforcePolicyImpl: newSetting is nonzero, so using "
+                "request_code POLICY_UPDATE_ENABLE");
+        request_code = POLICY_UPDATE_ENABLE;
+    }
+    ret = construct_policy_req(&request, request_code, NULL, NULL, 0);
+    if (ret < 0) {
+        LOGW("phornyac: setEnforcePolicyImpl: construct_policy_req() "
+                "returned error=%d, returning void", ret);
+        RETURN_VOID();
+    }
+    LOGW("phornyac: setEnforcePolicyImpl: construct_policy_req() "
+            "returned ok");
+
+    /* Send the request to the policyd server and get its response: */
+    LOGW("phornyac: setEnforcePolicyImpl: calling send_policy_request() "
+            "on policy_update_sockfd=%d", policy_update_sockfd);
+    ret = send_policy_request(policy_update_sockfd, &request, &response);
+    if (ret < 0) {
+        LOGW("phornyac: setEnforcePolicyImpl: send_policy_request() "
+                "returned error=%d, returning void", ret);
+        RETURN_VOID();
+    }
+    LOGW("phornyac: setEnforcePolicyImpl: send_policy_request() "
+            "returned ok, printing response:");
+    print_policy_resp(&response);
+
+    response_code = response.response_code;
+    if (response_code != POLICY_RESP_SUCCESS) {
+        LOGW("phornyac: setEnforcePolicyImpl: got unexpected response code "
+                "%d, returning void!!!", response_code);
+        RETURN_VOID();
+    }
+    LOGW("phornyac: setEnforcePolicyImpl: got POLICY_RESP_SUCCESS, "
+            "returning void");
     RETURN_VOID();
 }
 
@@ -857,11 +894,11 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     print_policy_req(&policy_request);
 
     LOGW("phornyac: allowExposeNetworkImpl(): calling "
-            "request_policy_decision()");
-    ret = request_policy_decision(policy_sockfd, &policy_request,
+            "send_policy_request()");
+    ret = send_policy_request(policy_sockfd, &policy_request,
             &policy_response);
     if (ret < 0) {
-        LOGW("phornyac: allowExposeNetworkImpl(): request_policy_decision() "
+        LOGW("phornyac: allowExposeNetworkImpl(): send_policy_request() "
                 "returned error %d", ret);
         LOGW("phornyac: allowExposeNetworkImpl(): closing policy_sockfd and "
                 "returning false");
@@ -869,7 +906,7 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
         policy_sockfd = -1;
         RETURN_BOOLEAN(false);
     }
-    LOGW("phornyac: allowExposeNetworkImpl(): request_policy_decision() "
+    LOGW("phornyac: allowExposeNetworkImpl(): send_policy_request() "
             "returned success, response code=%d",
             policy_response.response_code);
 
