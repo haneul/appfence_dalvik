@@ -30,9 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cutils/process_name.h>
-#include <policydb.h>
 #include <cutils/sockets.h>
-#include <cutils/policyd.h>
+#include <policy_client.h>
 
 #define TAINT_XATTR_NAME "user.taint"
 typedef char byte;
@@ -710,7 +709,7 @@ static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
     int read_ret;
     size_t msg_size;
     byte *buf;
-    policyd_msg msg_read;
+    policy_req msg_read;
     u4 newSetting;
 
     LOGW("phornyac: setEnforcePolicyImpl: entered");
@@ -739,30 +738,6 @@ static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
                 policy_update_sockfd);
     }
 
-    bytes_read = 0;
-    msg_size = sizeof(msg_read);
-    buf = (char *)&msg_read;
-    read_ret = -1;
-    //while ((bytes_read < msg_size) && (read_ret != 0)) {
-    while (0) {  /* This was test code: */
-        LOGW("phornyac: setEnforcePolicyImpl: calling read() "
-                "on policy_update_sockfd, msg_size=%d, bytes_read=%d",
-                msg_size, bytes_read);
-        read_ret = read(policy_update_sockfd, buf, msg_size);
-        if (read_ret < 0) {
-            LOGW("phornyac: setEnforcePolicyImpl: read() "
-                    "returned read_ret=%d, exiting while loop",
-                    read_ret);
-            break;  /* exit while loop */
-        }
-        LOGW("phornyac: setEnforcePolicyImpl: read() "
-                "returned %d bytes read", read_ret);
-        bytes_read += read_ret;
-        buf += read_ret;
-    }
-    //LOGW("phornyac: setEnforcePolicyImpl: "
-    //        "msg_read contents: %s", msg_read.msg);
-
     LOGW("phornyac: setEnforcePolicyImpl: reached end, returning void");
     RETURN_VOID();
 }
@@ -777,12 +752,13 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     JValue* pResult)
 {
     LOGW("phornyac: allowExposeNetworkImpl(): entered");
-    int err = 0;
+    int ret = 0;
     unsigned int bytes_read;
     int read_ret;
     size_t msg_size;
     byte *buf;
-    policyd_msg msg_read;
+    policy_req policy_request;
+    policy_resp policy_response;
     DataObject *destFdObj = (DataObject *) args[0];
     ArrayObject *dataObj = (ArrayObject *) args[1];
 
@@ -797,37 +773,14 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
         LOGW("phornyac: allowExposeNetworkImpl(): policy_sockfd uninitialized, "
                 "calling socket_local_client(%s, %d, %d)",
                 POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
-        err = socket_local_client(POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
-        if (err == -1) {
+        ret = socket_local_client(POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
+        if (ret == -1) {
             LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
-                    "failed with err=%d", err);
+                    "failed with ret=%d", ret);
         } else {
-            policy_sockfd = err;
+            policy_sockfd = ret;
             LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
                     "succeeded, setting policy_sockfd=%d", policy_sockfd);
-
-            bytes_read = 0;
-            msg_size = sizeof(msg_read);
-            buf = (char *)&msg_read;
-            read_ret = -1;
-            //while ((bytes_read < msg_size) && (read_ret != 0)) {
-            while (0) {  /* test code */
-                LOGW("phornyac: allowExposeNetworkImpl(): calling read() "
-                        "on policy_sockfd, msg_size=%d, bytes_read=%d",
-                        msg_size, bytes_read);
-                read_ret = read(policy_sockfd, buf, msg_size);
-                if (read_ret < 0) {
-                    LOGW("phornyac: allowExposeNetworkImpl(): read() "
-                            "returned read_ret=%d, doing nothing", read_ret);
-                    break;  /* exit while loop */
-                }
-                LOGW("phornyac: allowExposeNetworkImpl(): read() "
-                        "returned %d bytes read", read_ret);
-                bytes_read += read_ret;
-                buf += read_ret;
-            }
-            //LOGW("phornyac: allowExposeNetworkImpl(): "
-            //        "msg_read contents: %s", msg_read.msg);
         }
     } else {
         LOGW("phornyac: allowExposeNetworkImpl(): policy_sockfd already "
@@ -890,12 +843,40 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     /* Get the name of the calling process: */
     const char *processName = get_process_name();
 
-    /* Now we have everything we need: */
-    LOGW("phornyac: allowExposeNetworkImpl(): calling doesPolicyAllow() with "
-            "source=%s, dest=%s, taint=0x%X", processName, destName, tag);
+    LOGW("phornyac: allowExposeNetworkImpl(): calling "
+            "construct_policy_req()");
+    ret = construct_policy_req(&policy_request, processName,
+            destName, tag);
+    if (ret < 0) {
+        LOGW("phornyac: allowExposeNetworkImpl(): construct_policy_req() "
+                "returned ret=%d, returning false", ret);
+        RETURN_BOOLEAN(false);
+    }
+    LOGW("phornyac: allowExposeNetworkImpl(): construct_policy_req() "
+            "returned %d", ret);
+    print_policy_req(&policy_request);
 
-    /* Get and check policy: */
-    RETURN_BOOLEAN(doesPolicyAllow(processName, destName, tag));
+    LOGW("phornyac: allowExposeNetworkImpl(): calling "
+            "request_policy_decision()");
+    ret = request_policy_decision(policy_sockfd, &policy_request,
+            &policy_response);
+    if (ret < 0) {
+        LOGW("phornyac: allowExposeNetworkImpl(): request_policy_decision() "
+                "returned error %d", ret);
+        LOGW("phornyac: allowExposeNetworkImpl(): closing policy_sockfd and "
+                "returning false");
+        close(policy_sockfd);
+        policy_sockfd = -1;
+        RETURN_BOOLEAN(false);
+    }
+    LOGW("phornyac: allowExposeNetworkImpl(): request_policy_decision() "
+            "returned success, response code=%d",
+            policy_response.response_code);
+
+    //XXX: handle response codes appropriately!!!
+    LOGW("phornyac: allowExposeNetworkImpl(): TODO: handle response code "
+            "appropriately! For now, returning true");
+    RETURN_BOOLEAN(true);
 }
 
 const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
