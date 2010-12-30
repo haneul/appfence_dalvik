@@ -51,6 +51,8 @@ public final class Taint {
      * For now, defaults to true on every boot, because it is
      * difficult / impossible to access the Android settings
      * (android.provider.Settings) from here.
+     * TODO: rather than storing this here, we should GET it
+     *   by asking policyd every time!
      */
     private static boolean enforcePolicy = true;
 
@@ -469,20 +471,20 @@ public final class Taint {
      * Turns enforcement of the current exposure policy on or off.
      */
     public static void setEnforcePolicy(boolean newSetting) {
-        log("phornyac: setPolicyEnforcement(): calling native "+
+        log("phornyac: setEnforcePolicy: calling native "+
                 "setEnforcePolicyImpl("+newSetting+")");
         setEnforcePolicyImpl(newSetting);
+          //XXX: check return value???
+        enforcePolicy = newSetting;
+        log("phornyac: setEnforcePolicy: set enforcePolicy="+enforcePolicy+
+                ", should match newSetting="+newSetting);
     }
 
     /**
      * Native implementation of setEnforcePolicy().
      *
-     * @param fd
-     *      file descriptor for the connected socket to send data over.
-     * @param data
-     *      data to be sent over the network.
-     * @return true if the process is allowed to expose the data, false
-     * otherwise or on error.
+     * @param newSetting
+     *      ...
      */
     native private static void setEnforcePolicyImpl(boolean newSetting);
 
@@ -499,20 +501,8 @@ public final class Taint {
      */
     public static boolean allowExposeNetwork(FileDescriptor fd,
             byte[] data) {
-        /**
-         * Check exposure policy database if our current settings tell us to,
-         * otherwise always return true to allow all exposure.
-         */
-        //XXX: adjust
-        //if (enforcePolicy) {
-        if (true) {
-            log("phornyac: allowExposeNetwork(): enforcePolicy is true, "+
-                    "calling allowExposeNetworkImpl()");
-            return allowExposeNetworkImpl(fd, data);
-        }
-        log("phornyac: allowExposeNetwork(): enforcePolicy is false, "+
-                "returning true");
-        return true;
+        log("phornyac: allowExposeNetwork: immediately calling allowExposeNetworkImpl()");
+        return allowExposeNetworkImpl(fd, data);
     }
 
     /**
@@ -527,4 +517,18 @@ public final class Taint {
      */
     native private static boolean allowExposeNetworkImpl(FileDescriptor fd,
             byte[] data);
+
+    /**
+     * Prints a byte array.
+     */
+    public static void printByteArray(byte[] data) {
+        log("phornyac: printByteArray: calling native printByteArrayImpl()");
+        printByteArrayImpl(data);
+    }
+
+    /**
+     * Native implementation of printByteArray().
+     */
+    native private static void printByteArrayImpl(byte[] data);
+
 }

@@ -391,6 +391,7 @@ final class OSNetworkSystem implements INetworkSystem {
      */
     public int peekDatagram(FileDescriptor fd, InetAddress sender,
             int receiveTimeout) throws IOException {
+        Taint.log("phornyac: OSNetworkSystem.peekDatagram: entered");
         return peekDatagramImpl(fd, sender, receiveTimeout);
     }
 
@@ -426,7 +427,11 @@ final class OSNetworkSystem implements INetworkSystem {
      */
     public int read(FileDescriptor fd, byte[] data, int offset, int count,
             int timeout) throws IOException {
-        return readSocketImpl(fd, data, offset, count, timeout);
+        Taint.log("phornyac: OSNetworkSystem.read: entered");
+        int retval = readSocketImpl(fd, data, offset, count, timeout);
+        Taint.log("phornyac: OSNetworkSystem.read: printing receive data");
+        Taint.printByteArray(data);
+        return retval;
     }
 
     static native int readSocketImpl(FileDescriptor aFD, byte[] data,
@@ -452,6 +457,7 @@ final class OSNetworkSystem implements INetworkSystem {
      */
     public int readDirect(FileDescriptor fd, int address, int offset, int count,
             int timeout) throws IOException {
+        Taint.log("phornyac: OSNetworkSystem.readDirect: entered");
         return readSocketDirectImpl(fd, address, offset, count, timeout);
     }
 
@@ -525,7 +531,11 @@ final class OSNetworkSystem implements INetworkSystem {
      */
     public int receiveStream(FileDescriptor aFD, byte[] data,
             int offset, int count, int timeout) throws IOException {
-        return receiveStreamImpl(aFD, data, offset, count, timeout);
+        Taint.log("phornyac: receiveStream: entered");
+        int retval = receiveStreamImpl(aFD, data, offset, count, timeout);
+        Taint.log("phornyac: receiveStream: printing receive data");
+        Taint.printByteArray(data);
+        return retval;
     }
 
     static native int receiveStreamImpl(FileDescriptor aFD, byte[] data,
@@ -556,6 +566,8 @@ final class OSNetworkSystem implements INetworkSystem {
 	// end WITH_TAINT_TRACKING
         Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
                 "calling allowExposeNetwork(fd, data)");
+        Taint.log("phornyac: printing send data.");
+        Taint.printByteArray(data);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
                     "allowExposeNetwork() returned true, calling "+
@@ -733,6 +745,8 @@ final class OSNetworkSystem implements INetworkSystem {
 	// end WITH_TAINT_TRACKING
         Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
                 "calling allowExposeNetwork(fd, data)");
+        Taint.log("phornyac: printing send data");
+        Taint.printByteArray(data);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
                     "allowExposeNetwork() returned true, calling "+
@@ -804,6 +818,8 @@ final class OSNetworkSystem implements INetworkSystem {
 	// end WITH_TAINT_TRACKING
         Taint.log("phornyac: OSNetworkSystem.sendDatagram(): "+
                 "calling allowExposeNetwork(fd, data)");
+        Taint.log("phornyac: printing send data");
+        Taint.printByteArray(data);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.sendDatagram(): "+
                     "allowExposeNetwork() returned true, calling "+
@@ -836,6 +852,8 @@ final class OSNetworkSystem implements INetworkSystem {
 	// end WITH_TAINT_TRACKING
         Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
                 "calling allowExposeNetwork(fd, data)");
+        Taint.log("phornyac: printing send data");
+        Taint.printByteArray(data);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
                     "allowExposeNetwork() returned true, calling "+
@@ -1013,6 +1031,8 @@ final class OSNetworkSystem implements INetworkSystem {
 	// end WITH_TAINT_TRACKING
         Taint.log("phornyac: OSNetworkSystem.write(): "+
                 "calling allowExposeNetwork(fd, data)");
+        Taint.log("phornyac: printing send data");
+        Taint.printByteArray(data);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.write(): "+
                     "allowExposeNetwork() returned true, calling "+

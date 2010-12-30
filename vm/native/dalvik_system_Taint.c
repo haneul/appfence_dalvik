@@ -700,6 +700,8 @@ static int policy_sockfd = -1;
  *
  * See dalvik/vm/native/dalvik_system_VMDebug.c for examples of how to "unpack"
  * the FileDesciptor object, etc.
+ *
+ * TODO: this should return an error code, not void.
  */
 static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
     JValue* pResult)
@@ -779,6 +781,93 @@ static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
     RETURN_VOID();
 }
 
+static void test_longest_LOG_message() {
+    unsigned int low = 8;
+    unsigned int high = 14;
+    unsigned int n;
+    unsigned int i;
+    unsigned int size;
+    char *buf;
+
+    LOGW("phornyac: test_longest_LOG_message: entered");
+    /* Example: 2^4 is 16, which is 10000 in binary. */
+    size = 1;
+    for (i = 0; i < low; i++) {
+        size = size << 1;
+    }
+
+    if (high < low)
+        return;
+    
+    for (n = low; n <= high; n++) {
+        buf = malloc((size*sizeof(char)));
+        for (i = 0; i < size-1; i++) {
+            buf[i] = (char)((i%10) + 48);
+        }
+        buf[size-1] = '\0';
+        LOGW("phornyac: test_longest_LOG_message: attempting to print "
+                "log message of size %d bytes", size);
+        LOGW("%s", buf);
+        free(buf);
+        size = size << 1;
+    }
+}
+
+#define MAX_LOG_SIZE 1024
+static void Dalvik_dalvik_system_Taint_printByteArrayImpl(const u4* args,
+    JValue* pResult)
+{
+    int len, chunks, i, j, k;
+    char *data;
+    char dataStr[MAX_LOG_SIZE];
+    ArrayObject *dataObj = (ArrayObject *) args[0];
+
+    /* My empirical testing has determined that LOGW will print
+     * up to 1024 bytes of a character buffer that it is passed;
+     * it will also prepend the tag and process id, but these do
+     * not subtract from the 1024. Therefore, print the message
+     * in 1024 byte chunks; null-zeros are not necessary until
+     * the last chunk, and even then, we don't bother with the
+     * final null-zero if the message is exactly a multiple of
+     * 1024 bytes (which isn't uncommon for network send/receives).
+     */
+    if (dataObj) {
+        len = dataObj->length;
+        chunks = (len / MAX_LOG_SIZE);
+        if (len % MAX_LOG_SIZE != 0)
+            chunks++;
+        LOGW("phornyac: printByteArrayImpl: printing array of size %d "
+                "bytes in %d 1024-byte chunks", len, chunks);
+        data = (char *) dataObj->contents;
+        i = 0;
+        /* i indexes into the byte array, "data";
+         * j indexes into the char array, "dataStr".
+         * This double for-loop isn't the clearest way to do this,
+         * but oh well... */
+        for (k = 0; k < chunks; k++) {
+            for (j = 0; j < MAX_LOG_SIZE; j++) {
+                /* Replace unprintable characters with spaces:
+                 *   http://www.columbia.edu/kermit/ascii.html */
+                if ((int)(data[i]) < 32) {
+                    dataStr[j] = ' ';
+                } else {
+                    dataStr[j] = data[i];
+                }
+                i++;
+                if (i > len) {
+                    if (j < MAX_LOG_SIZE - 1) {
+                        dataStr[j+1] = '\0';
+                    }
+                    j = MAX_LOG_SIZE;  //break
+                }
+            }
+            LOGW("%s", dataStr);
+        }
+    } else {
+        LOGW("phornyac: printByteArrayImpl: dataObj is null!!! Returning.");
+    }
+}
+
 /**
  * private static boolean allowExposeNetworkImpl(FileDescriptor fd, byte[] data);
  *
@@ -824,7 +913,7 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
                 "connected to %d", policy_sockfd);
     }
 
-    /* Get the destination name (IP adress) from the destination socket fd: */
+    /* Get the destination name (IP address) from the destination socket fd: */
     LOGW("phornyac: allowExposeNetworkImpl(): getting dvm fields");
     InstField *hasNameField = dvmFindInstanceField(destFdObj->obj.clazz,
             "hasName", "Z");  //signature for boolean is Z
@@ -853,24 +942,6 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
              * Dalvik_dalvik_system_Taint_getTaintByteArray() or something
              * instead, to avoid code duplication??
              */
-
-        /* Debugging: */
-        /* contents is a byte[], so use char... right? */
-        int len = dataObj->length;
-        char *data = (char *) dataObj->contents;
-        int size = 0;
-        char dataStr[1024];
-        while (data && (size < len) && (size < 1023)) {
-            if (data[size] == '\0') {
-                dataStr[size] = ' ';
-            } else {
-                dataStr[size] = data[size];
-            }
-            size++;
-        }
-        dataStr[size] = '\0';
-        LOGW("phornyac: allowExposeNetworkImpl(): len=%d, dataStr=\"%s\"",
-                len, dataStr);
     } else {
         /* Do nothing: assume TAINT_CLEAR if byte[] is null */
         LOGW("phornyac: allowExposeNetworkImpl(): dataObj is null, "
@@ -1020,5 +1091,7 @@ const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
         Dalvik_dalvik_system_Taint_setEnforcePolicyImpl},
     { "allowExposeNetworkImpl",  "(Ljava/io/FileDescriptor;[B)Z",
         Dalvik_dalvik_system_Taint_allowExposeNetworkImpl},
+    { "printByteArrayImpl",  "([B)V",
+        Dalvik_dalvik_system_Taint_printByteArrayImpl},
     { NULL, NULL, NULL },
 };
