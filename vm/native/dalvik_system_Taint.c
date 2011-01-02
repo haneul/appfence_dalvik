@@ -617,6 +617,7 @@ static void Dalvik_dalvik_system_Taint_log(const u4* args,
     JValue* pResult)
 {
     StringObject* msgObj = (StringObject*) args[0];
+    int i;
     char *msg;
 
     if (msgObj == NULL) {
@@ -625,7 +626,19 @@ static void Dalvik_dalvik_system_Taint_log(const u4* args,
     }
 
     msg = dvmCreateCstrFromString(msgObj);
+    for (i = 0; i < strlen(msg); i++) {
+        /* Replace unprintable characters with spaces:
+         *   http://www.columbia.edu/kermit/ascii.html */
+        if ((int)(msg[i]) < 32) {
+            msg[i] = ' ';
+        } 
+    }
     LOGW("TaintLog: %s", msg);
+    char *curmsg = msg;
+    while(strlen(curmsg) > 1013) {
+        curmsg = curmsg+1013;
+        LOGW("%s", curmsg);
+    }
     free(msg);
 
     RETURN_VOID();

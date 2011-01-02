@@ -35,6 +35,10 @@ import java.nio.channels.Channel;
 
 // BEGIN WITH_TAINT_TRACKING
 import dalvik.system.Taint;
+import java.lang.Throwable;
+import java.io.Writer;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 // END WITH_TAINT_TRACKING
 // BEGIN android-removed
 // import java.nio.channels.SelectableChannel;
@@ -429,7 +433,8 @@ final class OSNetworkSystem implements INetworkSystem {
             int timeout) throws IOException {
         Taint.log("phornyac: OSNetworkSystem.read: entered");
         int retval = readSocketImpl(fd, data, offset, count, timeout);
-        Taint.log("phornyac: OSNetworkSystem.read: printing receive data");
+        Taint.log("phornyac: OSNetworkSystem.read: printing receive data, "+
+                "count="+count+", bytes read="+retval);
         Taint.printByteArray(data);
         return retval;
     }
@@ -533,7 +538,8 @@ final class OSNetworkSystem implements INetworkSystem {
             int offset, int count, int timeout) throws IOException {
         Taint.log("phornyac: receiveStream: entered");
         int retval = receiveStreamImpl(aFD, data, offset, count, timeout);
-        Taint.log("phornyac: receiveStream: printing receive data");
+        Taint.log("phornyac: receiveStream: printing receive data, "+
+                "count="+count+", bytes read="+retval);
         Taint.printByteArray(data);
         return retval;
     }
@@ -558,15 +564,26 @@ final class OSNetworkSystem implements INetworkSystem {
 	// begin WITH_TAINT_TRACKING
 	int tag = Taint.getTaintByteArray(data);
 	if (tag != Taint.TAINT_CLEAR) {
-	    String dstr = new String(data);
-	    String addr = (fd.hasName) ? fd.name : "unknown";
+        Throwable tw = new Throwable();
+        String dstr = new String(data);
+        if(dstr.length() > 1000)
+        {
+            dstr = dstr.substring(0, 1000);
+        }
+        Writer result = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(result);
+        tw.printStackTrace(printWriter);
+        
+        String addr = (fd.hasName) ? fd.name : "unknown";
 	    String tstr = "0x" + Integer.toHexString(tag);
-	    Taint.log("OSNetworkSystem.sendStream("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
+	    Taint.log("OSNetworkSystem.sendStream("+addr+") received data with tag "+
+                tstr + " data=["+dstr+"] stack=["+result.toString()+"]");
 	}
 	// end WITH_TAINT_TRACKING
         Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
                 "calling allowExposeNetwork(fd, data)");
-        Taint.log("phornyac: printing send data.");
+        Taint.log("phornyac: OSNetworkSystem.sendStream: printing send data, "+
+                "count="+count);
         Taint.printByteArray(data);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
@@ -1031,7 +1048,8 @@ final class OSNetworkSystem implements INetworkSystem {
 	// end WITH_TAINT_TRACKING
         Taint.log("phornyac: OSNetworkSystem.write(): "+
                 "calling allowExposeNetwork(fd, data)");
-        Taint.log("phornyac: printing send data");
+        Taint.log("phornyac: OSNetworkSystem.write(): "+
+                "printing send data, count="+count);
         Taint.printByteArray(data);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.write(): "+
