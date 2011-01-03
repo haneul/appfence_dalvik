@@ -580,32 +580,32 @@ final class OSNetworkSystem implements INetworkSystem {
                 tstr + " data=["+dstr+"] stack=["+result.toString()+"]");
 	}
 	// end WITH_TAINT_TRACKING
-        Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+        Taint.log("phornyac: OSNS.sendStream(): "+
                 "calling allowExposeNetwork(fd, data)");
-        Taint.log("phornyac: OSNetworkSystem.sendStream: printing send data, "+
+        Taint.log("phornyac: OSNS.sendStream: printing send data, "+
                 "count="+count);
         Taint.printByteArray(data);
         if (Taint.allowExposeNetwork(fd, data)) {
-            Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+            Taint.log("phornyac: OSNS.sendStream(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendStreamImpl()");
             return sendStreamImpl(fd, data, offset, count);
         } else {
-            Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+            Taint.log("phornyac: OSNS.sendStream(): "+
                     "allowExposeNetwork() returned false");
             switch (violationAction) {
                 case EXCEPTION:
-                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                    Taint.log("phornyac: OSNS.sendStream(): "+
                             "case ViolationAction.EXCEPTION");
                     throw new SocketException("not allowed to expose data "+
                             "with taint 0x"+Integer.toHexString(tag));
                 case UNAVAILABLE:
-                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                    Taint.log("phornyac: OSNS.sendStream(): "+
                             "case ViolationAction.UNAVAILABLE");
                     throw new SocketException("not allowed to expose data "+
                             "with taint 0x"+Integer.toHexString(tag));
                 case EXPECTED:
-                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                    Taint.log("phornyac: OSNS.sendStream(): "+
                             "case ViolationAction.EXPECTED");
                     /**
                      * On success, sendStreamImpl() returns count, the number of
@@ -614,17 +614,17 @@ final class OSNetworkSystem implements INetworkSystem {
                      */
                     return count;
                 case LOG:
-                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                    Taint.log("phornyac: OSNS.sendStream(): "+
                             "case ViolationAction.LOG");
                     break;
                 default:
-                    Taint.log("phornyac: OSNetworkSystem.sendStream(): "+
+                    Taint.log("phornyac: OSNS.sendStream(): "+
                             "case default");
                     break;
             }
         }
         /* Shouldn't reach here... */
-        Taint.log("phornyac: OSNetworkSystem.sendStream(): reached code we "+
+        Taint.log("phornyac: OSNS.sendStream(): reached code we "+
                 "shouldn't reach! Returning 0");
         return 0;
     }
