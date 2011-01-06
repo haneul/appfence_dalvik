@@ -50,9 +50,22 @@ import java.io.StringWriter;
 final class OSNetworkSystem implements INetworkSystem {
 
     /**
+     * States we can be in when taking action in response to a policy
+     * violation; for example, imitating that the network connection
+     * is unavailable requires multiple steps in multiple methods.
+     */
+    private enum ViolationState {
+        NOTHING,                   /* Initial state */
+        SENT_TIMEOUT,              /* "The operation timed out" exception
+                                    * sent */
+        SENT_BROKEN_PIPE,          /* "Broken pipe" exception sent */
+        SENT_NETWORK_UNREACHABLE,  /* "Network unreachable" exception sent */
+    };
+    private ViolationState violationState = ViolationState.NOTHING;
+
+    /**
      * Possible actions to take when a network transmission violates
      * our exposure policy.
-     * XXX: does this belong here, in this class?
      */
     private enum ViolationAction {
         EXCEPTION,       /* Block transmission and throw a
@@ -65,7 +78,7 @@ final class OSNetworkSystem implements INetworkSystem {
                           * violation */
     };
     /* Hard-coded for now... */
-    private ViolationAction violationAction = ViolationAction.EXPECTED;
+    private ViolationAction violationAction = ViolationAction.UNAVAILABLE;
 
     private static final int ERRORCODE_SOCKET_TIMEOUT = -209;
     private static final int ERRORCODE_SOCKET_INTERRUPTED = -208;
@@ -137,6 +150,23 @@ final class OSNetworkSystem implements INetworkSystem {
 
     public int connect(FileDescriptor fd, int trafficClass,
             InetAddress inetAddress, int port) throws IOException{
+        Taint.log("phornyac: OSNS.connect: entered");
+        Taint.log("phornyac: OSNS.connect: "+
+                "violationState="+violationState);
+        if ((violationState == ViolationState.SENT_BROKEN_PIPE) ||
+            (violationState == ViolationState.SENT_TIMEOUT)) {
+            /* Set the new state BEFORE throwing the exception: */
+            Taint.log("phornyac: OSNS.connect: "+
+                    "setting violationState to NOTHING and throwing "+
+                    "SOCKERR_ENETUNREACH");
+            violationState = ViolationState.NOTHING;
+            throwExceptionNative("SOCKERR_ENETUNREACH");
+            /* No easy documentation about return value, but I think 0
+             * indicates success and -1 indicates failure. */
+            return -1;
+        }
+        Taint.log("phornyac: OSNS.connect: "+
+                "violationState is normal, continuing as usual");
 	// begin WITH_TAINT_TRACKING
 	String addr = inetAddress.getHostAddress();
 	if (addr != null) {
@@ -152,6 +182,7 @@ final class OSNetworkSystem implements INetworkSystem {
 
     public void connectDatagram(FileDescriptor fd, int port,
             int trafficClass, InetAddress inetAddress) throws SocketException {
+        Taint.log("phornyac: OSNS.connectDatagram: entered");
 	// begin WITH_TAINT_TRACKING
 	String addr = inetAddress.getHostAddress();
 	if (addr != null) {
@@ -168,6 +199,21 @@ final class OSNetworkSystem implements INetworkSystem {
     public void connectStreamWithTimeoutSocket(FileDescriptor aFD,
             int aport, int timeout, int trafficClass, InetAddress inetAddress)
             throws IOException {
+        Taint.log("phornyac: OSNS.connectStreamWithTimeoutSocket: entered");
+        Taint.log("phornyac: OSNS.connectStreamWithTimeoutSocket: "+
+                "violationState="+violationState);
+        if ((violationState == ViolationState.SENT_BROKEN_PIPE) ||
+            (violationState == ViolationState.SENT_TIMEOUT)) {
+            /* Set the new state BEFORE throwing the exception: */
+            Taint.log("phornyac: OSNS.connectStreamWithTimeoutSocket: "+
+                    "setting violationState to NOTHING and throwing "+
+                    "SOCKERR_ENETUNREACH");
+            violationState = ViolationState.NOTHING;
+            throwExceptionNative("SOCKERR_ENETUNREACH");
+            return;
+        }
+        Taint.log("phornyac: OSNS.connectStreamWithTimeoutSocket: "+
+                "violationState is normal, continuing as usual");
 	// begin WITH_TAINT_TRACKING
 	String addr = inetAddress.getHostAddress();
 	if (addr != null) {
@@ -188,6 +234,23 @@ final class OSNetworkSystem implements INetworkSystem {
     public int connectWithTimeout(FileDescriptor fd, int timeout,
             int trafficClass, InetAddress inetAddress, int port, int step,
             byte[] context) throws IOException {
+        Taint.log("phornyac: OSNS.connectWithTimeout: entered");
+        Taint.log("phornyac: OSNS.connectWithTimeout: "+
+                "violationState="+violationState);
+        if ((violationState == ViolationState.SENT_BROKEN_PIPE) ||
+            (violationState == ViolationState.SENT_TIMEOUT)) {
+            /* Set the new state BEFORE throwing the exception: */
+            Taint.log("phornyac: OSNS.connectWithTimeout: "+
+                    "setting violationState to NOTHING and throwing "+
+                    "SOCKERR_ENETUNREACH");
+            violationState = ViolationState.NOTHING;
+            throwExceptionNative("SOCKERR_ENETUNREACH");
+            /* No easy documentation about return value, but I think 0
+             * indicates success and -1 indicates failure. */
+            return -1;
+        }
+        Taint.log("phornyac: OSNS.connectWithTimeout: "+
+                "violationState is normal, continuing as usual");
 	// begin WITH_TAINT_TRACKING
 	String addr = inetAddress.getHostAddress();
 	if (addr != null) {
@@ -435,8 +498,14 @@ final class OSNetworkSystem implements INetworkSystem {
         int retval = readSocketImpl(fd, data, offset, count, timeout);
         Taint.log("phornyac: OSNetworkSystem.read: printing receive data, "+
                 "count="+count+", bytes read="+retval);
-        Taint.printByteArray(data);
+        Taint.printByteArray(data, min(count, retval));
         return retval;
+    }
+
+    private int min(int a, int b) {
+        if (a < b)
+            return a;
+        return b;
     }
 
     static native int readSocketImpl(FileDescriptor aFD, byte[] data,
@@ -540,7 +609,7 @@ final class OSNetworkSystem implements INetworkSystem {
         int retval = receiveStreamImpl(aFD, data, offset, count, timeout);
         Taint.log("phornyac: receiveStream: printing receive data, "+
                 "count="+count+", bytes read="+retval);
-        Taint.printByteArray(data);
+        Taint.printByteArray(data, min(count, retval));
         return retval;
     }
 
@@ -561,6 +630,25 @@ final class OSNetworkSystem implements INetworkSystem {
      */
     public int sendStream(FileDescriptor fd, byte[] data, int offset, int count)
             throws IOException {
+        Taint.log("phornyac: OSNS.sendStream: entered");
+        Taint.log("phornyac: OSNS.sendStream: "+
+                "violationState="+violationState);
+        if (violationState == ViolationState.SENT_TIMEOUT) {
+            /* Set the new state BEFORE throwing the exception: */
+            Taint.log("phornyac: OSNS.sendStream: "+
+                    "setting violationState to SENT_BROKEN_PIPE and "+
+                    "throwing SOCKERR_EPIPE");
+            violationState = ViolationState.SENT_BROKEN_PIPE;
+            throwExceptionNative("SOCKERR_EPIPE");
+            return 0;  /* Number of bytes sent */
+        } else if (violationState != ViolationState.NOTHING) {
+            Taint.log("phornyac: OSNS.sendStream: violationState is "+
+                    violationState+", unexpected! But continuing "+
+                    "sendStream as usual");
+        } else {
+            Taint.log("phornyac: OSNS.sendStream: violationState is normal, "+
+                    "continuing as usual");
+        }
 	// begin WITH_TAINT_TRACKING
 	int tag = Taint.getTaintByteArray(data);
 	if (tag != Taint.TAINT_CLEAR) {
@@ -584,7 +672,7 @@ final class OSNetworkSystem implements INetworkSystem {
                 "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: OSNS.sendStream: printing send data, "+
                 "count="+count);
-        Taint.printByteArray(data);
+        Taint.printByteArray(data, count);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNS.sendStream(): "+
                     "allowExposeNetwork() returned true, calling "+
@@ -602,8 +690,18 @@ final class OSNetworkSystem implements INetworkSystem {
                 case UNAVAILABLE:
                     Taint.log("phornyac: OSNS.sendStream(): "+
                             "case ViolationAction.UNAVAILABLE");
-                    throw new SocketException("not allowed to expose data "+
-                            "with taint 0x"+Integer.toHexString(tag));
+                    if (violationState != ViolationState.NOTHING) {
+                        Taint.log("phornyac: OSNS.sendStream: "+
+                                "violationState is not NOTHING! Continuing "+
+                                "anyway");
+                    }
+                    Taint.log("phornyac: OSNS.sendStream: "+
+                            "setting violationState to SENT_TIMEOUT and "+
+                            "throwing SOCKERR_TIMEOUT");
+                    /* Change the state BEFORE throwing the exception: */
+                    violationState = ViolationState.SENT_TIMEOUT;
+                    throwExceptionNative("SOCKERR_TIMEOUT");
+                    break;
                 case EXPECTED:
                     Taint.log("phornyac: OSNS.sendStream(): "+
                             "case ViolationAction.EXPECTED");
@@ -763,7 +861,7 @@ final class OSNetworkSystem implements INetworkSystem {
         Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
                 "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: printing send data");
-        Taint.printByteArray(data);
+        Taint.printByteArray(data, length);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
                     "allowExposeNetwork() returned true, calling "+
@@ -836,7 +934,7 @@ final class OSNetworkSystem implements INetworkSystem {
         Taint.log("phornyac: OSNetworkSystem.sendDatagram(): "+
                 "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: printing send data");
-        Taint.printByteArray(data);
+        Taint.printByteArray(data, length);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.sendDatagram(): "+
                     "allowExposeNetwork() returned true, calling "+
@@ -870,7 +968,7 @@ final class OSNetworkSystem implements INetworkSystem {
         Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
                 "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: printing send data");
-        Taint.printByteArray(data);
+        Taint.printByteArray(data, length);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
                     "allowExposeNetwork() returned true, calling "+
@@ -1050,7 +1148,7 @@ final class OSNetworkSystem implements INetworkSystem {
                 "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: OSNetworkSystem.write(): "+
                 "printing send data, count="+count);
-        Taint.printByteArray(data);
+        Taint.printByteArray(data, count);
         if (Taint.allowExposeNetwork(fd, data)) {
             Taint.log("phornyac: OSNetworkSystem.write(): "+
                     "allowExposeNetwork() returned true, calling "+
@@ -1094,4 +1192,7 @@ final class OSNetworkSystem implements INetworkSystem {
 
     static native int writeSocketDirectImpl(FileDescriptor fd, int address, int offset, int count)
             throws IOException;
+
+    public native void throwExceptionNative(String exceptionName)
+            throws UnknownHostException, SocketException;
 }

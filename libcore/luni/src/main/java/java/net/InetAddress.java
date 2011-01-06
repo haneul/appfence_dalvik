@@ -38,6 +38,8 @@ import org.apache.harmony.luni.util.Inet6Util;
 import org.apache.harmony.luni.util.Msg;
 import org.apache.harmony.luni.util.PriviAction;
 
+import dalvik.system.Taint;
+
 /**
  * The Internet Protocol (IP) address representation class. This class
  * encapsulates an IP address and provides name and reverse name resolution
@@ -461,6 +463,8 @@ public class InetAddress extends Object implements Serializable {
     static synchronized InetAddress[] lookupHostByName(String host)
             throws UnknownHostException {
         int ttl = -1;
+        int i;
+        String processName = Taint.getProcessName();
 
         // BEGIN android-changed
         String ttlValue = AccessController
@@ -488,7 +492,14 @@ public class InetAddress extends Object implements Serializable {
             }
         }
         if (element != null) {
-            return element.addresses();
+            InetAddress[] addrs = element.addresses();
+            for (i=0; i < addrs.length; i++) {
+                Taint.log("phornyac: InetAddress.lookupHostByName: "+
+                        "processName=["+processName+"], "+
+                        "cached host["+host+"] -> "+
+                        "address["+addrs[i].getHostAddress()+"]");
+            }
+            return addrs;
         }
         // END android-changed
 
@@ -515,6 +526,12 @@ public class InetAddress extends Object implements Serializable {
         InetAddress[] addresses = bytesToInetAddresses(rawAddresses, host);
 
         Cache.add(host, addresses);
+        for (i=0; i < addresses.length; i++) {
+            Taint.log("phornyac: InetAddress.lookupHostByName: "+
+                    "processName=["+processName+"], "+
+                    "uncached host["+host+"] -> "+
+                    "address["+addresses[i].getHostAddress()+"]");
+        }
         return addresses;
         // END android-changed
     }

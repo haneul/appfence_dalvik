@@ -501,7 +501,7 @@ public final class Taint {
      */
     public static boolean allowExposeNetwork(FileDescriptor fd,
             byte[] data) {
-        log("phornyac: allowExposeNetwork: immediately calling allowExposeNetworkImpl()");
+        //log("phornyac: allowExposeNetwork: immediately calling allowExposeNetworkImpl()");
         return allowExposeNetworkImpl(fd, data);
     }
 
@@ -521,14 +521,18 @@ public final class Taint {
     /**
      * Prints a byte array.
      */
-    public static void printByteArray(byte[] data) {
+    public static void printByteArray(byte[] data, int len) {
         log("phornyac: printByteArray: calling native printByteArrayImpl()");
-        printByteArrayImpl(data);
+        printByteArrayImpl(data, len);
     }
 
     /**
      * Native implementation of printByteArray().
      */
-    native private static void printByteArrayImpl(byte[] data);
+    native private static void printByteArrayImpl(byte[] data, int len);
 
+    /**
+     * Returns the current process/VM name.
+     */
+    native public static String getProcessName();
 }
