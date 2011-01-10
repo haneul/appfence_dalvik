@@ -553,12 +553,13 @@ static jbyteArray osNetworkSystem_ipStringToByteArray(JNIEnv *env, jclass clazz,
         throwNullPointerException(env);
     }
 
+    jbyte *bytes;
     const char* process_name = get_process_name();
     char ipString[INET6_ADDRSTRLEN];
     int stringLength = env->GetStringUTFLength(javaString);
     env->GetStringUTFRegion(javaString, 0, stringLength, ipString);
     LOGW("phornyac: OSNS.ipStringToByteArray: ipString=[%s], "
-            "process_name=[%s]", ipString, process_name);
+            "process_name=[%s]", ipString, process_name); 
 
     // Accept IPv6 addresses (only) in square brackets for compatibility.
     if (ipString[0] == '[' && ipString[stringLength - 1] == ']' &&
@@ -603,8 +604,12 @@ static jbyteArray osNetworkSystem_ipStringToByteArray(JNIEnv *env, jclass clazz,
 LOGW("phornyac: java/net/UnknownHostException 04");
         jniThrowException(env, "java/net/UnknownHostException",
                 gai_strerror(ret));
+    } else {
+        bytes = env->GetByteArrayElements(result, NULL);
+        LOGW("phornyac: OSNS.ipStringToByteArray: converted ipString=[%s] "
+                "to result=[%s] for process_name=[%s]",
+                ipString, (char *)bytes, process_name);
     }
-
     return result;
 }
 
