@@ -553,13 +553,9 @@ static jbyteArray osNetworkSystem_ipStringToByteArray(JNIEnv *env, jclass clazz,
         throwNullPointerException(env);
     }
 
-    jbyte *bytes;
-    const char* process_name = get_process_name();
     char ipString[INET6_ADDRSTRLEN];
     int stringLength = env->GetStringUTFLength(javaString);
     env->GetStringUTFRegion(javaString, 0, stringLength, ipString);
-    LOGW("phornyac: OSNS.ipStringToByteArray: ipString=[%s], "
-            "process_name=[%s]", ipString, process_name); 
 
     // Accept IPv6 addresses (only) in square brackets for compatibility.
     if (ipString[0] == '[' && ipString[stringLength - 1] == ']' &&
@@ -601,14 +597,15 @@ static jbyteArray osNetworkSystem_ipStringToByteArray(JNIEnv *env, jclass clazz,
 
     if (! result) {
         env->ExceptionClear();
-LOGW("phornyac: java/net/UnknownHostException 04");
+        /* This exception is hit frequently, because InetAddress
+         * class calls this function not really to translate 
+         * IP address string to byte array, but to check if the
+         * string is a hostname (in which case this UnknownHostException
+         * will be thrown) or if the string is an IP address (in which
+         * case we'll return result, which will be ignored). */
+        //LOGW("phornyac: java/net/UnknownHostException 04");
         jniThrowException(env, "java/net/UnknownHostException",
                 gai_strerror(ret));
-    } else {
-        bytes = env->GetByteArrayElements(result, NULL);
-        LOGW("phornyac: OSNS.ipStringToByteArray: converted ipString=[%s] "
-                "to result=[%s] for process_name=[%s]",
-                ipString, (char *)bytes, process_name);
     }
     return result;
 }
