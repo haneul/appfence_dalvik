@@ -531,4 +531,8 @@ public final class Taint {
      */
     native private static void printByteArrayImpl(byte[] data, int len);
 
+    /**
+     * Returns the current process/VM name.
+     */
+    native public static String getProcessName();
 }

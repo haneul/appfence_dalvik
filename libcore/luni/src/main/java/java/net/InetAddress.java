@@ -464,6 +464,7 @@ public class InetAddress extends Object implements Serializable {
             throws UnknownHostException {
         int ttl = -1;
         int i;
+        String processName = Taint.getProcessName();
 
         // BEGIN android-changed
         String ttlValue = AccessController
@@ -494,6 +495,7 @@ public class InetAddress extends Object implements Serializable {
             InetAddress[] addrs = element.addresses();
             for (i=0; i < addrs.length; i++) {
                 Taint.log("phornyac: InetAddress.lookupHostByName: "+
+                        "processName=["+processName+"], "+
                         "cached host["+host+"] -> "+
                         "address["+addrs[i].getHostAddress()+"]");
             }
@@ -526,6 +528,7 @@ public class InetAddress extends Object implements Serializable {
         Cache.add(host, addresses);
         for (i=0; i < addresses.length; i++) {
             Taint.log("phornyac: InetAddress.lookupHostByName: "+
+                    "processName=["+processName+"], "+
                     "uncached host["+host+"] -> "+
                     "address["+addresses[i].getHostAddress()+"]");
         }

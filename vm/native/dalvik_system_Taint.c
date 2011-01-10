@@ -1016,6 +1016,15 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     RETURN_BOOLEAN(false);
 }
 
+/* See getInnerClassName() in vm/native/java_lang_Class.c */
+static void Dalvik_dalvik_system_Taint_getProcessName(const u4* args,
+    JValue* pResult)
+{
+    const char *processName = get_process_name();
+    StringObject* nameObj = dvmCreateStringFromCstr(processName, ALLOC_DEFAULT);
+    RETURN_PTR(nameObj);
+}
+
 const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
     { "addTaintString",  "(Ljava/lang/String;I)V",
         Dalvik_dalvik_system_Taint_addTaintString},
@@ -1105,5 +1114,7 @@ const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
         Dalvik_dalvik_system_Taint_allowExposeNetworkImpl},
     { "printByteArrayImpl",  "([BI)V",
         Dalvik_dalvik_system_Taint_printByteArrayImpl},
+    { "getProcessName",  "()Ljava/lang/String;",
+        Dalvik_dalvik_system_Taint_getProcessName},
     { NULL, NULL, NULL },
 };
