@@ -207,6 +207,8 @@ static const char * netLookupErrorString(int anErrorNum);
  * Throws an SocketException with the message affiliated with the errorCode.
  */
 static void throwSocketException(JNIEnv *env, int errorCode) {
+    LOGW("phornyac: throwSocketException: entered, throwing exception \"%s\"",
+            netLookupErrorString(errorCode));
     jniThrowException(env, "java/net/SocketException",
         netLookupErrorString(errorCode));
 }
@@ -500,6 +502,7 @@ static jstring osNetworkSystem_byteArrayToIpString(JNIEnv *env, jclass clazz,
     // For compatibility, ensure that an UnknownHostException is thrown if the
     // address is null.
     if (byteArray == NULL) {
+LOGW("phornyac: java/net/UnknownHostException 01");
         jniThrowException(env, "java/net/UnknownHostException",
                 strerror(EFAULT));
         return NULL;
@@ -507,6 +510,7 @@ static jstring osNetworkSystem_byteArrayToIpString(JNIEnv *env, jclass clazz,
     struct sockaddr_storage ss;
     int ret = byteArrayToSocketAddress(env, byteArray, 0, &ss);
     if (ret) {
+LOGW("phornyac: java/net/UnknownHostException 02");
         jniThrowException(env, "java/net/UnknownHostException", strerror(ret));
         return NULL;
     }
@@ -514,6 +518,7 @@ static jstring osNetworkSystem_byteArrayToIpString(JNIEnv *env, jclass clazz,
     ret = socketAddressToString(&ss, ipString, sizeof(ipString), false);
     if (ret) {
         env->ExceptionClear();
+LOGW("phornyac: java/net/UnknownHostException 03");
         jniThrowException(env, "java/net/UnknownHostException",
                 gai_strerror(ret));
         return NULL;
@@ -551,6 +556,7 @@ static jbyteArray osNetworkSystem_ipStringToByteArray(JNIEnv *env, jclass clazz,
     char ipString[INET6_ADDRSTRLEN];
     int stringLength = env->GetStringUTFLength(javaString);
     env->GetStringUTFRegion(javaString, 0, stringLength, ipString);
+    LOGW("phornyac: OSNS.ipStringToByteArray: ipString=[%s]", ipString);
 
     // Accept IPv6 addresses (only) in square brackets for compatibility.
     if (ipString[0] == '[' && ipString[stringLength - 1] == ']' &&
@@ -592,6 +598,7 @@ static jbyteArray osNetworkSystem_ipStringToByteArray(JNIEnv *env, jclass clazz,
 
     if (! result) {
         env->ExceptionClear();
+LOGW("phornyac: java/net/UnknownHostException 04");
         jniThrowException(env, "java/net/UnknownHostException",
                 gai_strerror(ret));
     }
@@ -1013,6 +1020,7 @@ static int pollSelectWait(JNIEnv *env, jobject fileDescriptor, int timeout, int 
                 }
 
             } else if (0 > result) {
+LOGW("phornyac: calling throwSocketException(): 01");
                 throwSocketException(env, result);
             }
             poll = 0;
@@ -1029,6 +1037,7 @@ static int pollSelectWait(JNIEnv *env, jobject fileDescriptor, int timeout, int 
 
                 continue; // try again
             } else if (0 > result) {
+LOGW("phornyac: calling throwSocketException(): 02");
                 throwSocketException(env, result);
             }
             poll = 0;
@@ -1487,6 +1496,7 @@ static void mcastAddDropMembership (JNIEnv * env, int handle, jobject optVal,
             interfaceIndex = interfaceIndexFromMulticastSocket(handle);
             multicastRequest.imr_ifindex = interfaceIndex;
             if (interfaceIndex == -1) {
+LOGW("phornyac: calling throwSocketException(): 03");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -1497,6 +1507,7 @@ static void mcastAddDropMembership (JNIEnv * env, int handle, jobject optVal,
         if (result < 0)  // Exception has already been thrown.
             return;
         if (sockaddrP.ss_family != AF_INET) {
+LOGW("phornyac: calling throwSocketException(): 04");
             throwSocketException(env, SOCKERR_BADAF);
             return;
         }
@@ -1506,6 +1517,7 @@ static void mcastAddDropMembership (JNIEnv * env, int handle, jobject optVal,
         result = setsockopt(handle, SOL_IP, setSockOptVal,
                             &multicastRequest, length);
         if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 05");
             throwSocketException (env, convertError(errno));
             return;
         }
@@ -1574,6 +1586,7 @@ static void mcastAddDropMembership (JNIEnv * env, int handle, jobject optVal,
                 level = SOL_IPV6;
                 break;
            default:
+LOGW("phornyac: calling throwSocketException(): 06");
                throwSocketException (env, SOCKERR_BADAF);
                return;
         }
@@ -1582,6 +1595,7 @@ static void mcastAddDropMembership (JNIEnv * env, int handle, jobject optVal,
         result = setsockopt(handle, level, setSockOptVal, multicastRequest,
                             requestLength);
         if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 07");
             throwSocketException (env, convertError(errno));
             return;
         }
@@ -1713,6 +1727,7 @@ static int createSocketFileDescriptor(JNIEnv* env, jobject fileDescriptor,
     }
     if (sock < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 08");
         throwSocketException(env, err);
         return sock;
     }
@@ -1764,6 +1779,7 @@ static jint osNetworkSystem_readSocketDirectImpl(JNIEnv* env, jclass clazz,
         return -1;
     } else if (ret == -1) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 09");
         throwSocketException(env, err);
         return 0;
     }
@@ -1822,6 +1838,7 @@ static jint osNetworkSystem_writeSocketDirectImpl(JNIEnv* env, jclass clazz,
     handle = jniGetFDFromFileDescriptor(env, fileDescriptor);
 
     if (handle == 0 || handle == -1) {
+LOGW("phornyac: calling throwSocketException(): 10");
         throwSocketException(env, SOCKERR_BADSOCKET);
         return 0;
     }
@@ -1861,6 +1878,7 @@ static jint osNetworkSystem_writeSocketDirectImpl(JNIEnv* env, jclass clazz,
             env->Throw((jthrowable)socketEx);
             return 0;
         }
+LOGW("phornyac: calling throwSocketException(): 11");
         throwSocketException(env, err);
         return 0;
     }
@@ -1922,6 +1940,7 @@ static void osNetworkSystem_setNonBlockingImpl(JNIEnv* env, jclass clazz,
     result = ioctl(handle, FIONBIO, &block);
 
     if (result == -1) {
+LOGW("phornyac: calling throwSocketException(): 12");
         throwSocketException(env, convertError(errno));
     }
 }
@@ -1980,6 +1999,7 @@ static jint osNetworkSystem_connectWithTimeoutSocketImpl(JNIEnv* env,
             jniThrowException(env, "java/lang/SecurityException",
                               netLookupErrorString(result));
         } else {
+LOGW("phornyac: java/net/ConnectException 05");
             jniThrowException(env, "java/net/ConnectException",
                               netLookupErrorString(result));
         }
@@ -2059,6 +2079,7 @@ static void osNetworkSystem_connectStreamWithTimeoutSocketImpl(JNIEnv* env,
         } else {
             //LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
             //        "throwSocketException() 1");
+LOGW("phornyac: calling throwSocketException(): 13");
             throwSocketException(env, result);
         }
         goto bail;
@@ -2135,6 +2156,7 @@ static void osNetworkSystem_connectStreamWithTimeoutSocketImpl(JNIEnv* env,
                 //    LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
                 //        "result == SOCKERR_somethingelse");
                 //}
+LOGW("phornyac: java/net/ConnectException 06");
                 jniThrowException(env, "java/net/ConnectException",
                                   netLookupErrorString(result));
             } else if (SOCKERR_EACCES == result) {
@@ -2143,6 +2165,7 @@ static void osNetworkSystem_connectStreamWithTimeoutSocketImpl(JNIEnv* env,
             } else {
                 //LOGW("phornyac: OSNetworkSystem.cpp connectStreamWithTimeoutSocketImpl(): "
                 //        "throwSocketException(result) 2");
+LOGW("phornyac: calling throwSocketException(): 14");
                 throwSocketException(env, result);
             }
             goto bail;
@@ -2196,6 +2219,7 @@ static jint osNetworkSystem_connectSocketImpl(JNIEnv* env, jclass clazz,
     }
 
     if (ret < 0) {
+LOGW("phornyac: java/net/ConnectException 07");
         jniThrowException(env, "java/net/ConnectException",
                 netLookupErrorString(convertError(errno)));
         return ret;
@@ -2248,6 +2272,7 @@ static void osNetworkSystem_listenStreamSocketImpl(JNIEnv* env, jclass clazz,
 
     if (ret < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 15");
         throwSocketException(env, err);
         return;
     }
@@ -2277,6 +2302,7 @@ static jint osNetworkSystem_availableStreamImpl(JNIEnv* env, jclass clazz,
         } else if (SOCKERR_INTERRUPTED == result) {
             continue;
         } else if (0 > result) {
+LOGW("phornyac: calling throwSocketException(): 16");
             throwSocketException(env, result);
             return 0;
         }
@@ -2286,6 +2312,7 @@ static jint osNetworkSystem_availableStreamImpl(JNIEnv* env, jclass clazz,
 
     if (0 > result) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 17");
         throwSocketException(env, err);
         return 0;
     }
@@ -2327,6 +2354,7 @@ static void osNetworkSystem_acceptSocketImpl(JNIEnv* env, jclass clazz,
 
     if (ret < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 18");
         throwSocketException(env, err);
         return;
     }
@@ -2386,6 +2414,7 @@ static void osNetworkSystem_sendUrgentDataImpl(JNIEnv* env, jclass clazz,
     result = send(handle, (jbyte *) &value, 1, MSG_OOB);
     if (result < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 19");
         throwSocketException(env, err);
     }
 }
@@ -2406,6 +2435,7 @@ static void osNetworkSystem_connectDatagramImpl2(JNIEnv* env, jclass clazz,
     ret = doConnect(handle, &sockAddr);
     if (ret < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 20");
         throwSocketException(env, err);
     }
 }
@@ -2423,6 +2453,7 @@ static void osNetworkSystem_disconnectDatagramImpl(JNIEnv* env, jclass clazz,
     int result = doConnect(handle, &sockAddr);
     if (result < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 21");
         throwSocketException(env, err);
     }
 }
@@ -2453,6 +2484,7 @@ static jint osNetworkSystem_peekDatagramImpl(JNIEnv* env, jclass clazz,
     } while (length < 0 && errno == EINTR);
     if (length < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 22");
         throwSocketException(env, err);
         return 0;
     }
@@ -2493,6 +2525,7 @@ static jint osNetworkSystem_receiveDatagramDirectImpl(JNIEnv* env, jclass clazz,
     } while (actualLength < 0 && errno == EINTR);
     if (actualLength < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 23");
         throwSocketException(env, err);
         return 0;
     }
@@ -2625,6 +2658,7 @@ static jint osNetworkSystem_sendDatagramDirectImpl(JNIEnv* env, jclass clazz,
                 || (SOCKERR_CONNECTION_REFUSED == err)) {
             return 0;
         } else {
+LOGW("phornyac: calling throwSocketException(): 24");
             throwSocketException(env, err);
             return 0;
         }
@@ -2665,6 +2699,7 @@ static jint osNetworkSystem_sendConnectedDatagramDirectImpl(JNIEnv* env,
         if ((SOCKERR_CONNRESET == err) || (SOCKERR_CONNECTION_REFUSED == err)) {
             return 0;
         } else {
+LOGW("phornyac: calling throwSocketException(): 25");
             throwSocketException(env, err);
             return 0;
         }
@@ -2748,6 +2783,7 @@ static jint osNetworkSystem_receiveStreamImpl(JNIEnv* env, jclass clazz,
                               netLookupErrorString(SOCKERR_TIMEOUT));
         } else {
             int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 26");
             throwSocketException(env, err);
         }
         return 0;
@@ -2791,6 +2827,7 @@ static jint osNetworkSystem_sendStreamImpl(JNIEnv* env, jclass clazz,
             }
             env->ReleaseByteArrayElements(data, message, 0);
             int err = convertError(result);
+LOGW("phornyac: calling throwSocketException(): 27");
             throwSocketException(env, err);
             return 0;
         }
@@ -2819,6 +2856,7 @@ static void osNetworkSystem_shutdownInputImpl(JNIEnv* env, jobject obj,
 
     if (ret < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 28");
         throwSocketException(env, err);
         return;
     }
@@ -2841,6 +2879,7 @@ static void osNetworkSystem_shutdownOutputImpl(JNIEnv* env, jobject obj,
 
     if (ret < 0) {
         int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 29");
         throwSocketException(env, err);
         return;
     }
@@ -2896,6 +2935,7 @@ static jint osNetworkSystem_sendDatagramImpl2(JNIEnv* env, jclass clazz,
         } while (result < 0 && errno == EINTR);
         if (result < 0) {
             int err = convertError(errno);
+LOGW("phornyac: calling throwSocketException(): 30");
             throwSocketException(env, err);
             free(message);
             return 0;
@@ -3088,6 +3128,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
             socklen_t size = sizeof(struct linger);
             result = getsockopt(handle, SOL_SOCKET, SO_LINGER, &lingr, &size);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 31");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3104,6 +3145,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
             }
             result = getsockopt(handle, IPPROTO_TCP, TCP_NODELAY, &intValue, &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 32");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3118,6 +3160,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
                                           IPV6_MULTICAST_HOPS, &intValue,
                                           &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 33");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3129,6 +3172,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
             }
             result = getsockopt(handle, SOL_IP, IP_MULTICAST_IF, &sockVal, &sockSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 34");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3163,6 +3207,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
             }
 
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 35");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3172,6 +3217,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_SNDBUF: {
             result = getsockopt(handle, SOL_SOCKET, SO_SNDBUF, &intValue, &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 36");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3180,6 +3226,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_RCVBUF: {
             result = getsockopt(handle, SOL_SOCKET, SO_RCVBUF, &intValue, &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 37");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3188,6 +3235,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_BROADCAST: {
             result = getsockopt(handle, SOL_SOCKET, SO_BROADCAST, &intValue, &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 38");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3196,6 +3244,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_REUSEADDR: {
             result = getsockopt(handle, SOL_SOCKET, SO_REUSEADDR, &intValue, &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 39");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3204,6 +3253,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_KEEPALIVE: {
             result = getsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, &intValue, &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 40");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3212,6 +3262,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_OOBINLINE: {
             result = getsockopt(handle, SOL_SOCKET, SO_OOBINLINE, &intValue, &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 41");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3223,6 +3274,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
                                           IPV6_MULTICAST_LOOP, &intValue,
                                           &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 42");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3232,6 +3284,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
             result = getOrSetSocketOption(SOCKOPT_GET, handle, IP_TOS,
                                           IPV6_TCLASS, &intValue, &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 43");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3242,6 +3295,7 @@ static jobject osNetworkSystem_getSocketOptionImpl(JNIEnv* env, jclass clazz,
             socklen_t size = sizeof(timeout);
             result = getsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, &timeout, &size);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 44");
                 throwSocketException(env, convertError(errno));
                 return NULL;
             }
@@ -3299,6 +3353,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
             result = setsockopt(handle, SOL_SOCKET, SO_LINGER, &lingr,
                     sizeof(struct linger));
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 45");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3311,6 +3366,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
             }
             result = setsockopt(handle, IPPROTO_TCP, TCP_NODELAY, &intVal, intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 46");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3327,6 +3383,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
                                           IPV6_MULTICAST_HOPS, &intVal,
                                           &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 47");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3362,6 +3419,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
             result = setsockopt(handle, SOL_IP, IP_MULTICAST_IF,
                                 &mcast_req, sizeof(mcast_req));
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 48");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3398,6 +3456,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
                     IP_MULTICAST_IF, IPV6_MULTICAST_IF, optionValue,
                     &optionLength);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 49");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3407,6 +3466,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_SNDBUF: {
             result = setsockopt(handle, SOL_SOCKET, SO_SNDBUF, &intVal, intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 50");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3416,6 +3476,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_RCVBUF: {
             result = setsockopt(handle, SOL_SOCKET, SO_RCVBUF, &intVal, intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 51");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3425,6 +3486,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_BROADCAST: {
             result = setsockopt(handle, SOL_SOCKET, SO_BROADCAST, &intVal, intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 52");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3434,6 +3496,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_REUSEADDR: {
             result = setsockopt(handle, SOL_SOCKET, SO_REUSEADDR, &intVal, intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 53");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3442,6 +3505,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_KEEPALIVE: {
             result = setsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, &intVal, intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 54");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3451,6 +3515,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
         case JAVASOCKOPT_SO_OOBINLINE: {
             result = setsockopt(handle, SOL_SOCKET, SO_OOBINLINE, &intVal, intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 55");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3463,6 +3528,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
                                           IPV6_MULTICAST_LOOP, &intVal,
                                           &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 56");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3473,6 +3539,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
             result = getOrSetSocketOption(SOCKOPT_SET, handle, IP_TOS,
                                           IPV6_TCLASS, &intVal, &intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 57");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3483,6 +3550,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
             // SO_REUSEPORT doesn't need to get set on this System
             result = setsockopt(handle, SOL_SOCKET, SO_REUSEADDR, &intVal, intSize);
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 58");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3496,6 +3564,7 @@ static void osNetworkSystem_setSocketOptionImpl(JNIEnv* env, jclass clazz,
             result = setsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, &timeout,
                     sizeof(struct timeval));
             if (0 != result) {
+LOGW("phornyac: calling throwSocketException(): 59");
                 throwSocketException(env, convertError(errno));
                 return;
             }
@@ -3800,6 +3869,38 @@ clean:
     return channel_object;
 }
 
+#define BUF_LEN 256
+static void osNetworkSystem_throwExceptionNative(JNIEnv *env, jclass clazz,
+        jstring javaString) {
+    if (javaString == NULL) {
+        throwNullPointerException(env);
+    }
+
+    LOGW("phornyac: OSNS.throwExceptionNative: entered");
+    char exceptionName[BUF_LEN];
+    int stringLength = env->GetStringUTFLength(javaString);
+    env->GetStringUTFRegion(javaString, 0, stringLength, exceptionName);
+    LOGW("phornyac: OSNS.throwExceptionNative: exceptionName=[%s]",
+            exceptionName);
+
+    /* IMPORTANT: if any new cases are added to this function, may have to
+     * also update the signature in OSNetworkSystem.java (which says what
+     * exceptions this method throws). */
+    if (strncmp(exceptionName, "SOCKERR_ENETUNREACH", BUF_LEN) == 0) {
+        throwSocketException(env, SOCKERR_ENETUNREACH);
+    } else if (strncmp(exceptionName, "SOCKERR_EPIPE", BUF_LEN) == 0) {
+        throwSocketException(env, SOCKERR_EPIPE);
+    } else if (strncmp(exceptionName, "SOCKERR_TIMEOUT", BUF_LEN) == 0) {
+        throwSocketException(env, SOCKERR_TIMEOUT);
+    } else if (strncmp(exceptionName, "UnknownHostException", BUF_LEN) == 0) {
+        /* Should be unused right now? */
+        jniThrowException(env, "java/net/UnknownHostException",
+                "phornyac policy violation");
+    } else {
+        LOGW("phornyac: OSNS.throwExceptionNative: unknown exception name, "
+                "doing nothing");
+    }
+}
 /*
  * JNI registration.
  */
@@ -3850,6 +3951,7 @@ static JNINativeMethod gMethods[] = {
     { "inheritedChannelImpl",              "()Ljava/nio/channels/Channel;",                                            (void*) osNetworkSystem_inheritedChannelImpl               },
     { "byteArrayToIpString",               "([B)Ljava/lang/String;",                                                   (void*) osNetworkSystem_byteArrayToIpString                },
     { "ipStringToByteArray",               "(Ljava/lang/String;)[B",                                                   (void*) osNetworkSystem_ipStringToByteArray                },
+    { "throwExceptionNative",              "(Ljava/lang/String;)V",                                                    (void*) osNetworkSystem_throwExceptionNative               },
 };
 
 int register_org_apache_harmony_luni_platform_OSNetworkSystem(JNIEnv* env) {

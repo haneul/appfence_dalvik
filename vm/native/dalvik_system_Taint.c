@@ -823,10 +823,11 @@ static void test_longest_LOG_message() {
 static void Dalvik_dalvik_system_Taint_printByteArrayImpl(const u4* args,
     JValue* pResult)
 {
-    int len, chunks, i, j, k;
+    int chunks, i, j, k;
     char *data;
     char dataStr[MAX_LOG_SIZE];
     ArrayObject *dataObj = (ArrayObject *) args[0];
+    int len = args[1];
 
     /* My empirical testing has determined that LOGW will print
      * up to 1024 bytes of a character buffer that it is passed;
@@ -838,7 +839,7 @@ static void Dalvik_dalvik_system_Taint_printByteArrayImpl(const u4* args,
      * 1024 bytes (which isn't uncommon for network send/receives).
      */
     if (dataObj) {
-        len = dataObj->length;
+        //len = dataObj->length;
         chunks = (len / MAX_LOG_SIZE);
         if (len % MAX_LOG_SIZE != 0)
             chunks++;
@@ -854,11 +855,16 @@ static void Dalvik_dalvik_system_Taint_printByteArrayImpl(const u4* args,
             for (j = 0; j < MAX_LOG_SIZE; j++) {
                 /* Replace unprintable characters with spaces:
                  *   http://www.columbia.edu/kermit/ascii.html */
-                if ((int)(data[i]) < 32) {
+                //if ((int)(data[i]) < 32) {
+#if 0
+                if (((int)(data[i]) < 32) ||
+                    ((int)(data[i]) < 127)) {
                     dataStr[j] = ' ';
                 } else {
                     dataStr[j] = data[i];
                 }
+#endif
+                dataStr[j] = data[i];
                 i++;
                 if (i > len) {
                     if (j < MAX_LOG_SIZE - 1) {
@@ -883,7 +889,7 @@ static void Dalvik_dalvik_system_Taint_printByteArrayImpl(const u4* args,
 static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     JValue* pResult)
 {
-    LOGW("phornyac: allowExposeNetworkImpl(): entered");
+    //LOGW("phornyac: allowExposeNetworkImpl(): entered");
     int ret = 0;
     unsigned int bytes_read;
     int read_ret;
@@ -902,25 +908,25 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
 
     /* Connect to the policyd server, if we haven't already: */
     if (policy_sockfd == -1) {
-        LOGW("phornyac: allowExposeNetworkImpl(): policy_sockfd uninitialized, "
-                "calling socket_local_client(%s, %d, %d)",
-                POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
+        //LOGW("phornyac: allowExposeNetworkImpl(): policy_sockfd uninitialized, "
+        //        "calling socket_local_client(%s, %d, %d)",
+        //        POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
         ret = socket_local_client(POLICYD_SOCK, POLICYD_NSPACE, POLICYD_SOCKTYPE);
         if (ret == -1) {
             LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
                     "failed with ret=%d", ret);
         } else {
             policy_sockfd = ret;
-            LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
-                    "succeeded, setting policy_sockfd=%d", policy_sockfd);
+            //LOGW("phornyac: allowExposeNetworkImpl(): socket_local_connect() "
+            //        "succeeded, setting policy_sockfd=%d", policy_sockfd);
         }
     } else {
-        LOGW("phornyac: allowExposeNetworkImpl(): policy_sockfd already "
-                "connected to %d", policy_sockfd);
+        //LOGW("phornyac: allowExposeNetworkImpl(): policy_sockfd already "
+        //        "connected to %d", policy_sockfd);
     }
 
     /* Get the destination name (IP address) from the destination socket fd: */
-    LOGW("phornyac: allowExposeNetworkImpl(): getting dvm fields");
+    //LOGW("phornyac: allowExposeNetworkImpl(): getting dvm fields");
     InstField *hasNameField = dvmFindInstanceField(destFdObj->obj.clazz,
             "hasName", "Z");  //signature for boolean is Z
     InstField *nameField = dvmFindInstanceField(destFdObj->obj.clazz,
@@ -957,8 +963,8 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     /* Get the name of the calling process: */
     const char *processName = get_process_name();
 
-    LOGW("phornyac: allowExposeNetworkImpl(): calling "
-            "construct_policy_req()");
+    //LOGW("phornyac: allowExposeNetworkImpl(): calling "
+    //        "construct_policy_req()");
     ret = construct_policy_req(&policy_request, POLICY_REQ_QUERY,
             processName, destName, tag);
     if (ret < 0) {
@@ -966,12 +972,12 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
                 "returned ret=%d, returning false", ret);
         RETURN_BOOLEAN(false);
     }
-    LOGW("phornyac: allowExposeNetworkImpl(): construct_policy_req() "
-            "returned %d", ret);
+    //LOGW("phornyac: allowExposeNetworkImpl(): construct_policy_req() "
+    //        "returned %d", ret);
     print_policy_req(&policy_request);
 
-    LOGW("phornyac: allowExposeNetworkImpl(): calling "
-            "send_policy_request()");
+    //LOGW("phornyac: allowExposeNetworkImpl(): calling "
+    //        "send_policy_request()");
     ret = send_policy_request(policy_sockfd, &policy_request,
             &policy_response);
     if (ret < 0) {
@@ -983,11 +989,11 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
         policy_sockfd = -1;
         RETURN_BOOLEAN(false);
     }
-    LOGW("phornyac: allowExposeNetworkImpl(): send_policy_request() "
-            "returned success, response code=%d",
-            policy_response.response_code);
+    //LOGW("phornyac: allowExposeNetworkImpl(): send_policy_request() "
+    //        "returned success, response code=%d",
+    //        policy_response.response_code);
 
-    LOGW("phornyac: allowExposeNetworkImpl(): switching on response code");
+    //LOGW("phornyac: allowExposeNetworkImpl(): switching on response code");
     switch (policy_response.response_code) {
     case POLICY_RESP_ALLOW:
         LOGW("phornyac: allowExposeNetworkImpl(): case POLICY_RESP_ALLOW, "
@@ -1097,7 +1103,7 @@ const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
         Dalvik_dalvik_system_Taint_setEnforcePolicyImpl},
     { "allowExposeNetworkImpl",  "(Ljava/io/FileDescriptor;[B)Z",
         Dalvik_dalvik_system_Taint_allowExposeNetworkImpl},
-    { "printByteArrayImpl",  "([B)V",
+    { "printByteArrayImpl",  "([BI)V",
         Dalvik_dalvik_system_Taint_printByteArrayImpl},
     { NULL, NULL, NULL },
 };
