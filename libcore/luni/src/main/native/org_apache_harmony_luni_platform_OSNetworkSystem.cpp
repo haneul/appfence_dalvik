@@ -553,10 +553,12 @@ static jbyteArray osNetworkSystem_ipStringToByteArray(JNIEnv *env, jclass clazz,
         throwNullPointerException(env);
     }
 
+    const char* process_name = get_process_name();
     char ipString[INET6_ADDRSTRLEN];
     int stringLength = env->GetStringUTFLength(javaString);
     env->GetStringUTFRegion(javaString, 0, stringLength, ipString);
-    LOGW("phornyac: OSNS.ipStringToByteArray: ipString=[%s]", ipString);
+    LOGW("phornyac: OSNS.ipStringToByteArray: ipString=[%s], "
+            "process_name=[%s]", ipString, process_name);
 
     // Accept IPv6 addresses (only) in square brackets for compatibility.
     if (ipString[0] == '[' && ipString[stringLength - 1] == ']' &&

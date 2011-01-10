@@ -151,6 +151,22 @@ final class OSNetworkSystem implements INetworkSystem {
     public int connect(FileDescriptor fd, int trafficClass,
             InetAddress inetAddress, int port) throws IOException{
         Taint.log("phornyac: OSNS.connect: entered");
+        Taint.log("phornyac: OSNS.connect: "+
+                "violationState="+violationState);
+        if ((violationState == ViolationState.SENT_BROKEN_PIPE) ||
+            (violationState == ViolationState.SENT_TIMEOUT)) {
+            /* Set the new state BEFORE throwing the exception: */
+            Taint.log("phornyac: OSNS.connect: "+
+                    "setting violationState to NOTHING and throwing "+
+                    "SOCKERR_ENETUNREACH");
+            violationState = ViolationState.NOTHING;
+            throwExceptionNative("SOCKERR_ENETUNREACH");
+            /* No easy documentation about return value, but I think 0
+             * indicates success and -1 indicates failure. */
+            return -1;
+        }
+        Taint.log("phornyac: OSNS.connect: "+
+                "violationState is normal, continuing as usual");
 	// begin WITH_TAINT_TRACKING
 	String addr = inetAddress.getHostAddress();
 	if (addr != null) {
@@ -219,6 +235,22 @@ final class OSNetworkSystem implements INetworkSystem {
             int trafficClass, InetAddress inetAddress, int port, int step,
             byte[] context) throws IOException {
         Taint.log("phornyac: OSNS.connectWithTimeout: entered");
+        Taint.log("phornyac: OSNS.connectWithTimeout: "+
+                "violationState="+violationState);
+        if ((violationState == ViolationState.SENT_BROKEN_PIPE) ||
+            (violationState == ViolationState.SENT_TIMEOUT)) {
+            /* Set the new state BEFORE throwing the exception: */
+            Taint.log("phornyac: OSNS.connectWithTimeout: "+
+                    "setting violationState to NOTHING and throwing "+
+                    "SOCKERR_ENETUNREACH");
+            violationState = ViolationState.NOTHING;
+            throwExceptionNative("SOCKERR_ENETUNREACH");
+            /* No easy documentation about return value, but I think 0
+             * indicates success and -1 indicates failure. */
+            return -1;
+        }
+        Taint.log("phornyac: OSNS.connectWithTimeout: "+
+                "violationState is normal, continuing as usual");
 	// begin WITH_TAINT_TRACKING
 	String addr = inetAddress.getHostAddress();
 	if (addr != null) {
@@ -609,9 +641,14 @@ final class OSNetworkSystem implements INetworkSystem {
             violationState = ViolationState.SENT_BROKEN_PIPE;
             throwExceptionNative("SOCKERR_EPIPE");
             return 0;  /* Number of bytes sent */
+        } else if (violationState != ViolationState.NOTHING) {
+            Taint.log("phornyac: OSNS.sendStream: violationState is "+
+                    violationState+", unexpected! But continuing "+
+                    "sendStream as usual");
+        } else {
+            Taint.log("phornyac: OSNS.sendStream: violationState is normal, "+
+                    "continuing as usual");
         }
-        Taint.log("phornyac: OSNS.sendStream: violationState is normal, "+
-                "continuing as usual");
 	// begin WITH_TAINT_TRACKING
 	int tag = Taint.getTaintByteArray(data);
 	if (tag != Taint.TAINT_CLEAR) {
@@ -660,7 +697,7 @@ final class OSNetworkSystem implements INetworkSystem {
                     }
                     Taint.log("phornyac: OSNS.sendStream: "+
                             "setting violationState to SENT_TIMEOUT and "+
-                            "throwing SOCKERR_ETIMEOUT");
+                            "throwing SOCKERR_TIMEOUT");
                     /* Change the state BEFORE throwing the exception: */
                     violationState = ViolationState.SENT_TIMEOUT;
                     throwExceptionNative("SOCKERR_TIMEOUT");
