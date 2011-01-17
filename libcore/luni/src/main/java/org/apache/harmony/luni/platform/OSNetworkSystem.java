@@ -498,6 +498,10 @@ final class OSNetworkSystem implements INetworkSystem {
         int retval = readSocketImpl(fd, data, offset, count, timeout);
         Taint.log("phornyac: OSNetworkSystem.read: printing receive data, "+
                 "count="+count+", bytes read="+retval);
+        if(retval > 0) {
+                String addr = (fd.hasName) ? fd.name : "unknown";
+                Taint.log("recv read target=("+addr+") byte=("+retval+")");
+        }
         Taint.printByteArray(data, min(count, retval));
         return retval;
     }
@@ -532,7 +536,13 @@ final class OSNetworkSystem implements INetworkSystem {
     public int readDirect(FileDescriptor fd, int address, int offset, int count,
             int timeout) throws IOException {
         Taint.log("phornyac: OSNetworkSystem.readDirect: entered");
-        return readSocketDirectImpl(fd, address, offset, count, timeout);
+        int recv = readSocketDirectImpl(fd, address, offset, count, timeout);
+        if(recv > 0) {
+                String addr = (fd.hasName) ? fd.name : "unknown";
+                Taint.log("recv readDirect target=("+addr+") byte=("+recv+")");
+        }
+
+        return recv; 
     }
 
     static native int readSocketDirectImpl(FileDescriptor aFD, int address, int offset, int count,
@@ -564,8 +574,13 @@ final class OSNetworkSystem implements INetworkSystem {
     public int receiveDatagram(FileDescriptor fd, DatagramPacket packet,
             byte[] data, int offset, int length, int receiveTimeout,
             boolean peek) throws IOException {
-        return receiveDatagramImpl(fd, packet, data, offset, length,
+        int recv = receiveDatagramImpl(fd, packet, data, offset, length,
                 receiveTimeout, peek);
+        if(recv > 0) {
+                String addr = (fd.hasName) ? fd.name : "unknown";
+                Taint.log("recv receiveDatagram target=("+addr+") byte=("+recv+")");
+        }
+        return recv;
     }
 
     static native int receiveDatagramImpl(FileDescriptor aFD,
@@ -575,8 +590,13 @@ final class OSNetworkSystem implements INetworkSystem {
     public int receiveDatagramDirect(FileDescriptor fd,
             DatagramPacket packet, int address, int offset, int length,
             int receiveTimeout, boolean peek) throws IOException {
-        return receiveDatagramDirectImpl(fd, packet, address, offset, length,
+        int recv = receiveDatagramDirectImpl(fd, packet, address, offset, length,
                 receiveTimeout, peek);
+        if(recv > 0) {
+                String addr = (fd.hasName) ? fd.name : "unknown";
+                Taint.log("recv receiveDatagramDirect target=("+addr+") byte=("+recv+")");
+        }
+        return recv;
     }
 
     static native int receiveDatagramDirectImpl(FileDescriptor aFD,
@@ -607,6 +627,10 @@ final class OSNetworkSystem implements INetworkSystem {
             int offset, int count, int timeout) throws IOException {
         Taint.log("phornyac: receiveStream: entered");
         int retval = receiveStreamImpl(aFD, data, offset, count, timeout);
+        if(retval > 0) {
+                String addr = (aFD.hasName) ? aFD.name : "unknown";
+                Taint.log("recv receiveStream target=("+addr+") byte=("+retval+")");
+        }
         Taint.log("phornyac: receiveStream: printing receive data, "+
                 "count="+count+", bytes read="+retval);
         Taint.printByteArray(data, min(count, retval));
@@ -677,7 +701,10 @@ final class OSNetworkSystem implements INetworkSystem {
             Taint.log("phornyac: OSNS.sendStream(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendStreamImpl()");
-            return sendStreamImpl(fd, data, offset, count);
+            int sent = sendStreamImpl(fd, data, offset, count);
+	    String addr = (fd.hasName) ? fd.name : "unknown";
+	    Taint.log("sent sendStream target=("+addr+") byte=("+sent+")");
+	    return sent;
         } else {
             Taint.log("phornyac: OSNS.sendStream(): "+
                     "allowExposeNetwork() returned false");
@@ -851,9 +878,9 @@ final class OSNetworkSystem implements INetworkSystem {
             int offset, int length, boolean bindToDevice) throws IOException {
 	// begin WITH_TAINT_TRACKING
 	int tag = Taint.getTaintByteArray(data);
+	String addr = (fd.hasName) ? fd.name : "unknown";
 	if (tag != Taint.TAINT_CLEAR) {
 	    String dstr = new String(data);
-	    String addr = (fd.hasName) ? fd.name : "unknown";
 	    String tstr = "0x" + Integer.toHexString(tag);
 	    Taint.log("OSNetworkSystem.sendConnectedDatagram("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
 	}
@@ -866,6 +893,7 @@ final class OSNetworkSystem implements INetworkSystem {
             Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendConnectedDatagramImpl()");
+	    Taint.log("sent sendConnectedDatagram target=("+addr+") byte=("+length+")");
             return sendConnectedDatagramImpl(fd, data, offset, length, bindToDevice);
         } else {
             Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
@@ -924,9 +952,9 @@ final class OSNetworkSystem implements INetworkSystem {
             InetAddress inetAddress) throws IOException {
 	// begin WITH_TAINT_TRACKING
 	int tag = Taint.getTaintByteArray(data);
+	String addr = (fd.hasName) ? fd.name : "unknown";
 	if (tag != Taint.TAINT_CLEAR) {
 	    String dstr = new String(data);
-	    String addr = (fd.hasName) ? fd.name : "unknown";
 	    String tstr = "0x" + Integer.toHexString(tag);
 	    Taint.log("OSNetworkSystem.sendDatagram("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
 	}
@@ -939,6 +967,7 @@ final class OSNetworkSystem implements INetworkSystem {
             Taint.log("phornyac: OSNetworkSystem.sendDatagram(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendDatagramImpl()");
+	    Taint.log("sent sendDatagram target=("+addr+") byte=("+length+")");
             return sendDatagramImpl(fd, data, offset, length, port, bindToDevice,
                     trafficClass, inetAddress);
         } else {
@@ -958,9 +987,9 @@ final class OSNetworkSystem implements INetworkSystem {
             int length, int port, InetAddress inetAddress) throws IOException {
 	// begin WITH_TAINT_TRACKING
 	int tag = Taint.getTaintByteArray(data);
+	String addr = (fd.hasName) ? fd.name : "unknown";
 	if (tag != Taint.TAINT_CLEAR) {
 	    String dstr = new String(data);
-	    String addr = (fd.hasName) ? fd.name : "unknown";
 	    String tstr = "0x" + Integer.toHexString(tag);
 	    Taint.log("OSNetworkSystem.sendDatagram2("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
 	}
@@ -973,6 +1002,7 @@ final class OSNetworkSystem implements INetworkSystem {
             Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendDatagramImpl2()");
+	    Taint.log("sent sendDatagram2 target=("+addr+") byte=("+length+")");
             return sendDatagramImpl2(fd, data, offset, length, port, inetAddress);
         } else {
             Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
@@ -993,6 +1023,7 @@ final class OSNetworkSystem implements INetworkSystem {
 	// begin WITH_TAINT_TRACKING
 	String addr = (fd.hasName) ? fd.name : "unknown";
 	Taint.log("OSNetworkSystem.sendDatagramDirect("+addr+"), can't check taint!");
+	Taint.log("sent sendDatagramDirect target=("+addr+") byte=("+length+")");
 	// end WITH_TAINT_TRACKING
         return sendDatagramDirectImpl(fd, address, offset, length, port, bindToDevice,
                 trafficClass, inetAddress);
@@ -1011,6 +1042,7 @@ final class OSNetworkSystem implements INetworkSystem {
 	    Taint.log("OSNetworkSystem.sendUrgentData("+addr+") received data with tag " + tstr + " value=["+value+"]");
 	}
 	// end WITH_TAINT_TRACKING
+	Taint.log("sent sendUrgentData target=("+addr+") byte=(1)");
         Taint.log("phornyac: OSNetworkSystem.sendUrgentData(): "+
                 "calling allowExposeNetwork(fd, data)");
         /* allowExposeNetwork() needs a byte[], not just a byte: */
@@ -1153,7 +1185,13 @@ final class OSNetworkSystem implements INetworkSystem {
             Taint.log("phornyac: OSNetworkSystem.write(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "writeSocketImpl()");
-            return writeSocketImpl(fd, data, offset, count);
+            int sent = writeSocketImpl(fd, data, offset, count);
+	    // begin WITH_TAINT_TRACKING
+	    String addr = (fd.hasName) ? fd.name : "unknown";
+	    Taint.log("sent write target=("+addr+") byte=("+sent+")");
+	    // end WITH_TAINT_TRACKING
+	    return sent;
+
         } else {
             Taint.log("phornyac: OSNetworkSystem.write(): "+
                     "allowExposeNetwork() returned false, throwing a "+
@@ -1187,7 +1225,12 @@ final class OSNetworkSystem implements INetworkSystem {
 	String addr = (fd.hasName) ? fd.name : "unknown";
 	Taint.log("OSNetworkSystem.writeDirect("+addr+"), can't check taint!");
 	// end WITH_TAINT_TRACKING
-        return writeSocketDirectImpl(fd, address, offset, count);
+        int sent = writeSocketDirectImpl(fd, address, offset, count);
+        // begin WITH_TAINT_TRACKING
+        Taint.log("sent writeDirect target=("+addr+") byte=("+sent+")");
+        // end WITH_TAINT_TRACKING
+        return sent;
+
     }
 
     static native int writeSocketDirectImpl(FileDescriptor fd, int address, int offset, int count)
