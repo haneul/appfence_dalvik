@@ -179,12 +179,12 @@ class OSFileSystem implements IFileSystem {
             throw new IOException();
         }
 		// begin WITH_TAINT_TRACKING
-	boolean contain = false;
+	String fileName = null;
 	synchronized(notToTaint)
  	{
-		contain = notToTaint.contains(fileDescriptor);
+		fileName = notToTaint.get(fileDescriptor);
 	}
-	    if(!contain)
+	    if(fileName == null)
 	    {
 			int tag = Taint.getTaintFile(fileDescriptor);
 			if (tag != Taint.TAINT_CLEAR) {
@@ -193,6 +193,10 @@ class OSFileSystem implements IFileSystem {
 			    Taint.log("OSFileSystem.read("+fileDescriptor+"): reading with tag " + tstr + " data["+dstr+"]");
 			    Taint.addTaintByteArray(bytes, tag);
 			}
+	    }
+	    else
+	    {
+		Taint.log("sy- the file: "+fileName);
 	    }
 		// end WITH_TAINT_TRACKING
         return bytesRead;
@@ -209,17 +213,24 @@ class OSFileSystem implements IFileSystem {
         }
 	// begin WITH_TAINT_TRACKING
 	int tag = Taint.getTaintByteArray(bytes);
-	boolean contain = false;
+	String fileName = null;
 	synchronized(notToTaint)
  	{
-		contain = notToTaint.contains(fileDescriptor);
+		fileName = notToTaint.get(fileDescriptor);
 	}
-	if (!contain && tag != Taint.TAINT_CLEAR) {
-	    String dstr = new String(bytes);
-	    Taint.logPathFromFd(fileDescriptor);
-	    String tstr = "0x" + Integer.toHexString(tag);
-	    Taint.log("OSFileSystem.write("+fileDescriptor+"): writing with tag " + tstr + " data["+dstr+"]");
-	    Taint.addTaintFile(fileDescriptor, tag);
+	if(fileName == null)
+	{
+		if (tag != Taint.TAINT_CLEAR) {
+			String dstr = new String(bytes);
+			Taint.logPathFromFd(fileDescriptor);
+			String tstr = "0x" + Integer.toHexString(tag);
+			Taint.log("OSFileSystem.write("+fileDescriptor+"): writing with tag " + tstr + " data["+dstr+"]");
+			Taint.addTaintFile(fileDescriptor, tag);
+		}
+	}
+	else
+	{
+		Taint.log("sy- the file(w): "+fileName);
 	}
 	// end WITH_TAINT_TRACKING
         return bytesWritten;
@@ -288,7 +299,7 @@ class OSFileSystem implements IFileSystem {
     }
 
     private native int truncateImpl(int fileDescriptor, long size);
-    private Hashtable <Integer, Boolean> notToTaint = new Hashtable<Integer, Boolean>();
+    private Hashtable <Integer, String> notToTaint = new Hashtable<Integer, String>();
 
     public int open(byte[] fileName, int mode) throws FileNotFoundException {
         if (fileName == null) {
@@ -319,12 +330,12 @@ class OSFileSystem implements IFileSystem {
             }
         }
         // haneul
-        if(strFileName.startsWith("/data/system") || strFileName.startsWith("/system") || strFileName.startsWith("/etc"))
+        if(strFileName.startsWith("/data/system") || strFileName.startsWith("/system") || strFileName.startsWith("/etc") || strFileName.startsWith("/data/data/com.google.android.location/"))
         {
         	Taint.log("sy- not-taint-filename: "+strFileName+" handler: "+handler);
         	synchronized(notToTaint)
         	{
-        		notToTaint.put(handler, true);
+        		notToTaint.put(handler, strFileName);
         	}
         }
         return handler;
