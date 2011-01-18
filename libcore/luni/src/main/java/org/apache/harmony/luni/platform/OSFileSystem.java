@@ -25,6 +25,7 @@ import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.Hashtable;
 
 // begin WITH_TAINT_TRACKING
 import dalvik.system.Taint;
@@ -177,15 +178,23 @@ class OSFileSystem implements IFileSystem {
              */
             throw new IOException();
         }
-	// begin WITH_TAINT_TRACKING
-	int tag = Taint.getTaintFile(fileDescriptor);
-	if (tag != Taint.TAINT_CLEAR) {
-	    String dstr = new String(bytes);
-	    String tstr = "0x" + Integer.toHexString(tag);
-	    Taint.log("OSFileSystem.read("+fileDescriptor+"): reading with tag " + tstr + " data["+dstr+"]");
-	    Taint.addTaintByteArray(bytes, tag);
+		// begin WITH_TAINT_TRACKING
+	boolean contain = false;
+	synchronized(notToTaint)
+ 	{
+		contain = notToTaint.contains(fileDescriptor);
 	}
-	// end WITH_TAINT_TRACKING
+	    if(!contain)
+	    {
+			int tag = Taint.getTaintFile(fileDescriptor);
+			if (tag != Taint.TAINT_CLEAR) {
+			    String dstr = new String(bytes);
+			    String tstr = "0x" + Integer.toHexString(tag);
+			    Taint.log("OSFileSystem.read("+fileDescriptor+"): reading with tag " + tstr + " data["+dstr+"]");
+			    Taint.addTaintByteArray(bytes, tag);
+			}
+	    }
+		// end WITH_TAINT_TRACKING
         return bytesRead;
     }
 
@@ -200,7 +209,12 @@ class OSFileSystem implements IFileSystem {
         }
 	// begin WITH_TAINT_TRACKING
 	int tag = Taint.getTaintByteArray(bytes);
-	if (tag != Taint.TAINT_CLEAR) {
+	boolean contain = false;
+	synchronized(notToTaint)
+ 	{
+		contain = notToTaint.contains(fileDescriptor);
+	}
+	if (!contain && tag != Taint.TAINT_CLEAR) {
 	    String dstr = new String(bytes);
 	    Taint.logPathFromFd(fileDescriptor);
 	    String tstr = "0x" + Integer.toHexString(tag);
@@ -254,6 +268,12 @@ class OSFileSystem implements IFileSystem {
      * @see org.apache.harmony.luni.platform.IFileSystem#close(long)
      */
     public void close(int fileDescriptor) throws IOException {
+    	// haneul
+    	synchronized(notToTaint)
+    	{
+    		notToTaint.remove(fileDescriptor);
+    	}
+    	
         int rc = closeImpl(fileDescriptor);
         if (rc == -1) {
             throw new IOException();
@@ -268,12 +288,26 @@ class OSFileSystem implements IFileSystem {
     }
 
     private native int truncateImpl(int fileDescriptor, long size);
+    private Hashtable <Integer, Boolean> notToTaint = new Hashtable<Integer, Boolean>();
 
     public int open(byte[] fileName, int mode) throws FileNotFoundException {
         if (fileName == null) {
             throw new NullPointerException();
         }
+        
+        String strFileName;
+        try {
+        	strFileName = new String(fileName, "UTF-8");
+        }
+        catch(java.io.UnsupportedEncodingException e)
+        {
+        	FileNotFoundException fnfe = new FileNotFoundException(new String(fileName));
+			e.initCause(fnfe);
+			throw new AssertionError(e);
+        }
         int handler = openImpl(fileName, mode);
+        Taint.log("sy- filename: "+strFileName+" handler: "+handler);
+	
         if (handler < 0) {
             try {
                 throw new FileNotFoundException(new String(fileName, "UTF-8"));
@@ -283,6 +317,15 @@ class OSFileSystem implements IFileSystem {
                 e.initCause(fnfe);
                 throw new AssertionError(e);
             }
+        }
+        // haneul
+        if(strFileName.startsWith("/data/system") || strFileName.startsWith("/system") || strFileName.startsWith("/etc"))
+        {
+        	Taint.log("sy- not-taint-filename: "+strFileName+" handler: "+handler);
+        	synchronized(notToTaint)
+        	{
+        		notToTaint.put(handler, true);
+        	}
         }
         return handler;
     }
