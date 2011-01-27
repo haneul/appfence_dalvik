@@ -40,6 +40,8 @@ import org.apache.harmony.luni.platform.INetworkSystem;
 import org.apache.harmony.luni.platform.Platform;
 import org.apache.harmony.luni.util.Msg;
 
+import dalvik.system.Taint;
+
 /**
  * A concrete connected-socket implementation.
  */
@@ -582,6 +584,12 @@ public class PlainSocketImpl extends SocketImpl {
         }
         // BEGIN android-changed
         // call sendStream() instead of write()
+        //Taint.log("phornyac: PlainSocketImpl.write: entered");
+        Taint.log("phornyac: PlainSocketImpl.write: getHostName(): ["+
+                this.address.getHostName()+"]");
+        //Taint.log("phornyac: PlainSocketImpl.write: getCanonicalHostName(): ["+
+        //        this.address.getCanonicalHostName()+"]");
+        //Taint.log("phornyac: PlainSocketImpl.write: calling OSNS.sendStream()");
         return netImpl.sendStream(fd, buffer, offset, count);
         // END android-changed
     }
