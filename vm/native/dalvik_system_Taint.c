@@ -843,8 +843,10 @@ static void Dalvik_dalvik_system_Taint_printByteArrayImpl(const u4* args,
         chunks = (len / MAX_LOG_SIZE);
         if (len % MAX_LOG_SIZE != 0)
             chunks++;
+        if (len <= 0)
+            chunks = 0;
         LOGW("phornyac: printByteArrayImpl: printing array of size %d "
-                "bytes in %d 1024-byte chunks", len, chunks);
+                "bytes in %d %\-byte chunks", len, chunks, MAX_LOG_SIZE);
         data = (char *) dataObj->contents;
         i = 0;
         /* i indexes into the byte array, "data";

@@ -691,7 +691,7 @@ final class OSNetworkSystem implements INetworkSystem {
 	    Taint.log("OSNetworkSystem.sendStream("+addr+") received data with tag "+
                 tstr + " data=["+dstr+"] stack=["+result.toString()+"]");
 	}
-	// end WITH_TAINT_TRACKING
+    // end WITH_TAINT_TRACKING
         Taint.log("phornyac: OSNS.sendStream(): "+
                 "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: OSNS.sendStream: printing send data, "+
