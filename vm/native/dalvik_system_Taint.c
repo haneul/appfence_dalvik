@@ -754,7 +754,7 @@ static void Dalvik_dalvik_system_Taint_setEnforcePolicyImpl(const u4* args,
                 "request_code POLICY_UPDATE_ENABLE");
         request_code = POLICY_UPDATE_ENABLE;
     }
-    ret = construct_policy_req(&request, request_code, NULL, NULL, 0);
+    ret = construct_policy_req(&request, request_code, NULL, NULL, 0, NULL);
     if (ret < 0) {
         LOGW("phornyac: setEnforcePolicyImpl: construct_policy_req() "
                 "returned error=%d, returning void", ret);
@@ -846,7 +846,7 @@ static void Dalvik_dalvik_system_Taint_printByteArrayImpl(const u4* args,
         if (len <= 0)
             chunks = 0;
         LOGW("phornyac: printByteArrayImpl: printing array of size %d "
-                "bytes in %d %d\-byte chunks", len, chunks, MAX_LOG_SIZE);
+                "bytes in %d %d-byte chunks", len, chunks, MAX_LOG_SIZE);
         data = (char *) dataObj->contents;
         i = 0;
         /* i indexes into the byte array, "data";
@@ -897,15 +897,34 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     int read_ret;
     size_t msg_size;
     byte *buf;
+    char *hostname;
     policy_req policy_request;
     policy_resp policy_response;
     DataObject *destFdObj = (DataObject *) args[0];
     ArrayObject *dataObj = (ArrayObject *) args[1];
+    StringObject *hostnameObj = (StringObject*) args[2];
 
     /* Check that fd is not null (will check arr later): */
     if (destFdObj == NULL) {
         dvmThrowException("Ljava/lang/NullPointerException;", NULL);
         RETURN_BOOLEAN(false);
+    }
+
+    /* After getting hostname character array from StringObject, it
+     * must be free'd before returning! */
+    if (hostnameObj == NULL) {
+        LOGW("phornyac: allowExposeNetworkImpl: hostnameObj is NULL,"
+                "setting hostname=NULL");
+        hostname = NULL;
+    } else {
+        hostname = dvmCreateCstrFromString(hostnameObj);
+        if (hostname == NULL) {
+            LOGW("phornyac: allowExposeNetworkImpl: hostname string "
+                    "is NULL!");
+        } else {
+            LOGW("phornyac: allowExposeNetworkImpl: got hostname=[%s]",
+                    hostname);
+        }
     }
 
     /* Connect to the policyd server, if we haven't already: */
@@ -967,8 +986,14 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
 
     //LOGW("phornyac: allowExposeNetworkImpl(): calling "
     //        "construct_policy_req()");
+    /* construct_policy_req() copies the strings into the struct */
     ret = construct_policy_req(&policy_request, POLICY_REQ_QUERY,
-            processName, destName, tag);
+            processName, destName, tag, hostname);
+    LOGW("phornyac: allowExposeNetworkImpl: free-ing destName and hostname");
+    if (destName)
+        free(destName);
+    if (hostname)
+        free(hostname);
     if (ret < 0) {
         LOGW("phornyac: allowExposeNetworkImpl(): construct_policy_req() "
                 "returned ret=%d, returning false", ret);
@@ -976,7 +1001,7 @@ static void Dalvik_dalvik_system_Taint_allowExposeNetworkImpl(const u4* args,
     }
     //LOGW("phornyac: allowExposeNetworkImpl(): construct_policy_req() "
     //        "returned %d", ret);
-    print_policy_req(&policy_request);
+    //print_policy_req(&policy_request);
 
     //LOGW("phornyac: allowExposeNetworkImpl(): calling "
     //        "send_policy_request()");
@@ -1112,7 +1137,7 @@ const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
         Dalvik_dalvik_system_Taint_removeTaintInt},
     { "setEnforcePolicyImpl",  "(Z)V",
         Dalvik_dalvik_system_Taint_setEnforcePolicyImpl},
-    { "allowExposeNetworkImpl",  "(Ljava/io/FileDescriptor;[B)Z",
+    { "allowExposeNetworkImpl",  "(Ljava/io/FileDescriptor;[BLjava/lang/String;)Z",
         Dalvik_dalvik_system_Taint_allowExposeNetworkImpl},
     { "printByteArrayImpl",  "([BI)V",
         Dalvik_dalvik_system_Taint_printByteArrayImpl},

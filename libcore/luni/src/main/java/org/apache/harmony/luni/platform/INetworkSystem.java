@@ -127,8 +127,8 @@ public interface INetworkSystem {
             int count, int timeout) throws IOException;
 
     // BEGIN android-added
-    public int sendStream(FileDescriptor fd, byte[] data, int offset, int count)
-            throws IOException;
+    public int sendStream(FileDescriptor fd, byte[] data, int offset, int count,
+            String hostname) throws IOException;
     // END android-added
 
     public void shutdownInput(FileDescriptor descriptor) throws IOException;

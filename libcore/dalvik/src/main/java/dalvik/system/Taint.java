@@ -500,9 +500,9 @@ public final class Taint {
      * otherwise or on error.
      */
     public static boolean allowExposeNetwork(FileDescriptor fd,
-            byte[] data) {
+            byte[] data, String hostname) {
         //log("phornyac: allowExposeNetwork: immediately calling allowExposeNetworkImpl()");
-        return allowExposeNetworkImpl(fd, data);
+        return allowExposeNetworkImpl(fd, data, hostname);
     }
 
     /**
@@ -512,11 +512,13 @@ public final class Taint {
      *      file descriptor for the connected socket to send data over.
      * @param data
      *      data to be sent over the network.
+     * @param hostname
+     *      the server being sent to.
      * @return true if the process is allowed to expose the data, false
      * otherwise or on error.
      */
     native private static boolean allowExposeNetworkImpl(FileDescriptor fd,
-            byte[] data);
+            byte[] data, String hostname);
 
     /**
      * Prints a byte array.

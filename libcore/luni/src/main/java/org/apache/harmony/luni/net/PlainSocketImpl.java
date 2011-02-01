@@ -584,13 +584,16 @@ public class PlainSocketImpl extends SocketImpl {
         }
         // BEGIN android-changed
         // call sendStream() instead of write()
-        //Taint.log("phornyac: PlainSocketImpl.write: entered");
-        Taint.log("phornyac: PlainSocketImpl.write: getHostName(): ["+
-                this.address.getHostName()+"]");
-        //Taint.log("phornyac: PlainSocketImpl.write: getCanonicalHostName(): ["+
-        //        this.address.getCanonicalHostName()+"]");
-        //Taint.log("phornyac: PlainSocketImpl.write: calling OSNS.sendStream()");
-        return netImpl.sendStream(fd, buffer, offset, count);
+        String hostname = null;
+        if (this.address != null)
+            hostname = this.address.getHostName();
+        if (hostname != null)
+            Taint.log("phornyac: PlainSocketImpl.write: hostname=["+
+                hostname+"]");
+        else
+            Taint.log("phornyac: PlainSocketImpl.write: warning, hostname=["+
+                    "null] !");
+        return netImpl.sendStream(fd, buffer, offset, count, hostname);
         // END android-changed
     }
 }

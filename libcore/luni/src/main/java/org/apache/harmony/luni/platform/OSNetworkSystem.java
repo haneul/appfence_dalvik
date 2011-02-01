@@ -80,6 +80,9 @@ final class OSNetworkSystem implements INetworkSystem {
     /* Hard-coded for now... */
     private ViolationAction violationAction = ViolationAction.UNAVAILABLE;
 
+    /* We don't want strings in our exposure policy to ever match this: */
+    private String noHostname = "noHstnme";
+
     private static final int ERRORCODE_SOCKET_TIMEOUT = -209;
     private static final int ERRORCODE_SOCKET_INTERRUPTED = -208;
 
@@ -652,9 +655,11 @@ final class OSNetworkSystem implements INetworkSystem {
      * of bytes sent @throws IOException @exception SocketException if an error
      * occurs while writing
      */
-    public int sendStream(FileDescriptor fd, byte[] data, int offset, int count)
-            throws IOException {
+    public int sendStream(FileDescriptor fd, byte[] data, int offset, int count,
+            String hostname) throws IOException {
         Taint.log("phornyac: OSNS.sendStream: entered");
+        Taint.log("phornyac: OSNS.sendStream: "+
+                "hostname="+hostname);
         Taint.log("phornyac: OSNS.sendStream: "+
                 "violationState="+violationState);
         if (violationState == ViolationState.SENT_TIMEOUT) {
@@ -692,19 +697,19 @@ final class OSNetworkSystem implements INetworkSystem {
                 tstr + " data=["+dstr+"] stack=["+result.toString()+"]");
 	}
     // end WITH_TAINT_TRACKING
-        Taint.log("phornyac: OSNS.sendStream(): "+
-                "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: OSNS.sendStream: printing send data, "+
                 "count="+count);
         Taint.printByteArray(data, count);
-        if (Taint.allowExposeNetwork(fd, data)) {
+        Taint.log("phornyac: OSNS.sendStream: "+
+                "calling allowExposeNetwork(fd, data, hostname)");
+        if (Taint.allowExposeNetwork(fd, data, hostname)) {
             Taint.log("phornyac: OSNS.sendStream(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendStreamImpl()");
             int sent = sendStreamImpl(fd, data, offset, count);
-	    String addr = (fd.hasName) ? fd.name : "unknown";
-	    Taint.log("sent sendStream target=("+addr+") byte=("+sent+")");
-	    return sent;
+            String addr = (fd.hasName) ? fd.name : "unknown";
+            Taint.log("sent sendStream target=("+addr+") byte=("+sent+")");
+            return sent;
         } else {
             Taint.log("phornyac: OSNS.sendStream(): "+
                     "allowExposeNetwork() returned false");
@@ -889,7 +894,7 @@ final class OSNetworkSystem implements INetworkSystem {
                 "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: printing send data");
         Taint.printByteArray(data, length);
-        if (Taint.allowExposeNetwork(fd, data)) {
+        if (Taint.allowExposeNetwork(fd, data, noHostname)) {
             Taint.log("phornyac: OSNetworkSystem.sendConnectedDatagram(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendConnectedDatagramImpl()");
@@ -963,7 +968,7 @@ final class OSNetworkSystem implements INetworkSystem {
                 "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: printing send data");
         Taint.printByteArray(data, length);
-        if (Taint.allowExposeNetwork(fd, data)) {
+        if (Taint.allowExposeNetwork(fd, data, noHostname)) {
             Taint.log("phornyac: OSNetworkSystem.sendDatagram(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendDatagramImpl()");
@@ -998,7 +1003,7 @@ final class OSNetworkSystem implements INetworkSystem {
                 "calling allowExposeNetwork(fd, data)");
         Taint.log("phornyac: printing send data");
         Taint.printByteArray(data, length);
-        if (Taint.allowExposeNetwork(fd, data)) {
+        if (Taint.allowExposeNetwork(fd, data, noHostname)) {
             Taint.log("phornyac: OSNetworkSystem.sendDatagram2(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendDatagramImpl2()");
@@ -1049,7 +1054,7 @@ final class OSNetworkSystem implements INetworkSystem {
           //XXX: is this the right thing to do??? Haven't tested...
         byte[] valueArray = new byte[1];
         valueArray[0] = value;
-        if (Taint.allowExposeNetwork(fd, valueArray)) {
+        if (Taint.allowExposeNetwork(fd, valueArray, noHostname)) {
             Taint.log("phornyac: OSNetworkSystem.sendUrgentData(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "sendUrgentDataImpl()");
@@ -1181,7 +1186,7 @@ final class OSNetworkSystem implements INetworkSystem {
         Taint.log("phornyac: OSNetworkSystem.write(): "+
                 "printing send data, count="+count);
         Taint.printByteArray(data, count);
-        if (Taint.allowExposeNetwork(fd, data)) {
+        if (Taint.allowExposeNetwork(fd, data, noHostname)) {
             Taint.log("phornyac: OSNetworkSystem.write(): "+
                     "allowExposeNetwork() returned true, calling "+
                     "writeSocketImpl()");
