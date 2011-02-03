@@ -26,6 +26,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Hashtable;
+import java.io.File;
 
 // begin WITH_TAINT_TRACKING
 import dalvik.system.Taint;
@@ -184,20 +185,16 @@ class OSFileSystem implements IFileSystem {
  	{
 		fileName = notToTaint.get(fileDescriptor);
 	}
-	    if(fileName == null)
-	    {
-			int tag = Taint.getTaintFile(fileDescriptor);
-			if (tag != Taint.TAINT_CLEAR) {
-			    String dstr = new String(bytes);
-			    String tstr = "0x" + Integer.toHexString(tag);
-			    Taint.log("OSFileSystem.read("+fileDescriptor+"): reading with tag " + tstr + " data["+dstr+"]");
-			    Taint.addTaintByteArray(bytes, tag);
-			}
-	    }
-	    else
-	    {
-		Taint.log("sy- the file: "+fileName);
-	    }
+	if(fileName == null)
+	{
+		int tag = Taint.getTaintFile(fileDescriptor);
+		if (tag != Taint.TAINT_CLEAR) {
+			String dstr = new String(bytes);
+			String tstr = "0x" + Integer.toHexString(tag);
+			Taint.log("OSFileSystem.read("+fileDescriptor+"): reading with tag " + tstr + " data["+dstr+"]");
+			Taint.addTaintByteArray(bytes, tag);
+		}
+	}
 		// end WITH_TAINT_TRACKING
         return bytesRead;
     }
@@ -227,10 +224,6 @@ class OSFileSystem implements IFileSystem {
 			Taint.log("OSFileSystem.write("+fileDescriptor+"): writing with tag " + tstr + " data["+dstr+"]");
 			Taint.addTaintFile(fileDescriptor, tag);
 		}
-	}
-	else
-	{
-		Taint.log("sy- the file(w): "+fileName);
 	}
 	// end WITH_TAINT_TRACKING
         return bytesWritten;
@@ -316,8 +309,35 @@ class OSFileSystem implements IFileSystem {
 			e.initCause(fnfe);
 			throw new AssertionError(e);
         }
-        int handler = openImpl(fileName, mode);
-        Taint.log("sy- filename: "+strFileName+" handler: "+handler);
+	boolean block = false;
+	String processName = Taint.getProcessName();
+	if(!processName.startsWith("net.intelresearch.seattle.mash.notification") && strFileName.startsWith("/dev/log"))
+	{
+		File f = new File("/data/misc/block");
+		if(f.exists())
+		{
+			Taint.log("sy- logfile open blockexists! - with mode="+mode); 
+			block = true;
+		}
+	}
+
+        int handler;
+	if(block) {
+		String tempFileName = "/dev/null";
+		try { 
+			handler = openImpl(tempFileName.getBytes("UTF-8"), mode);
+		}
+		catch(java.io.UnsupportedEncodingException e)
+		{
+			FileNotFoundException fnfe = new FileNotFoundException(new String(fileName));
+			e.initCause(fnfe);
+			throw new AssertionError(e);
+		}
+	}
+	else {
+		handler = openImpl(fileName, mode);
+	}
+        Taint.log("sy- filename: "+strFileName+" handler: "+handler + " proc: "+Taint.getProcessName());
 	
         if (handler < 0) {
             try {
@@ -330,7 +350,7 @@ class OSFileSystem implements IFileSystem {
             }
         }
         // haneul
-        if(strFileName.startsWith("/data/system") || strFileName.startsWith("/system") || strFileName.startsWith("/etc") || strFileName.startsWith("/data/data/com.google.android.location/"))
+        if(strFileName.startsWith("/data/system") || strFileName.startsWith("/system") || strFileName.startsWith("/etc") || strFileName.startsWith("/data/data/com.google.android.location/") || strFileName.startsWith("/data/backup") || strFileName.startsWith("/data/data/com.android.settings"))
         {
         	Taint.log("sy- not-taint-filename: "+strFileName+" handler: "+handler);
         	synchronized(notToTaint)

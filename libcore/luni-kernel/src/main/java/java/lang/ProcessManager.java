@@ -31,6 +31,8 @@ import java.util.Arrays;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 
+import dalvik.system.Taint;
+
 /**
  * Manages child processes.
  *
@@ -186,12 +188,29 @@ final class ProcessManager {
                 ? null
                 : workingDirectory.getPath();
 
+	Taint.log("sy - run :"+commands[0]);
+	boolean block = false;
+	File f = new File("/data/misc/block");
+	if(commands[0].indexOf("logcat") != -1 && f.exists())
+	{
+		Taint.log("sy- block logcat"); 
+		block = true;
+	}
+
+
         // Ensure onExit() doesn't access the process map before we add our
         // entry.
         synchronized (processReferences) {
             int pid;
             try {
-                pid = exec(commands, environment, workingPath, in, out, err);
+		if(block) {
+			String[] tempCommands = {"cat", "/dev/null"};
+			pid = exec(tempCommands, environment, workingPath, in, out, err);
+		}
+		else
+		{
+			pid = exec(commands, environment, workingPath, in, out, err);
+		}
             } catch (IOException e) {
                 IOException wrapper = new IOException("Error running exec()." 
                         + " Commands: " + Arrays.toString(commands)
