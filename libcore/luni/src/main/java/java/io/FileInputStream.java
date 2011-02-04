@@ -24,6 +24,10 @@ import org.apache.harmony.luni.platform.Platform;
 import org.apache.harmony.luni.util.Msg;
 import org.apache.harmony.nio.FileChannelFactory;
 
+// begin WITH_TAINT_TRACKING
+import dalvik.system.Taint;
+// end WITH_TAINT_TRACKING
+
 /**
  * A specialized {@link InputStream} that reads from a file in the file system.
  * All read requests made by calling methods in this class are directly
@@ -314,9 +318,19 @@ public class FileInputStream extends InputStream implements Closeable {
         synchronized (repositioningLock) {
             // stdin requires special handling
             if (fd == FileDescriptor.in) {
-                return (int) fileSystem.ttyRead(buffer, offset, count);
+                int ret = (int) fileSystem.ttyRead(buffer, offset, count);
+		if(taint != Taint.TAINT_CLEAR)
+		{
+			Taint.addTaintByteArray(buffer, taint);	
+		}
+		return ret;
             }
-            return (int) fileSystem.read(fd.descriptor, buffer, offset, count);
+            int ret = (int) fileSystem.read(fd.descriptor, buffer, offset, count);
+	    if(taint != Taint.TAINT_CLEAR)
+	    {
+		    Taint.addTaintByteArray(buffer, taint);	
+	    }
+	    return ret;
         }
     }
 

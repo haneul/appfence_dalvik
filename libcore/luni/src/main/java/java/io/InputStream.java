@@ -21,6 +21,10 @@ package java.io;
 import org.apache.harmony.luni.util.Msg;
 // END android-added
 
+// begin WITH_TAINT_TRACKING
+import dalvik.system.Taint;
+// end WITH_TAINT_TRACKING
+
 /**
  * The base class for all input streams. An input stream is a means of reading
  * data from a source in a byte-wise manner.
@@ -40,6 +44,8 @@ import org.apache.harmony.luni.util.Msg;
 public abstract class InputStream extends Object implements Closeable {
 
     private static byte[] skipBuf;
+
+    public int taint = Taint.TAINT_CLEAR;
 
     /**
      * This constructor does nothing. It is provided for signature
@@ -185,6 +191,7 @@ public abstract class InputStream extends Object implements Closeable {
             }
             b[offset + i] = (byte) c;
         }
+	if(taint != Taint.TAINT_CLEAR) Taint.addTaintByteArray(b, taint);
         return length;
     }
 

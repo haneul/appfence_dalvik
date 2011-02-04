@@ -47,6 +47,7 @@ public final class Taint {
     public static final int TAINT_HISTORY       = 0x00008000;
     public static final int TAINT_CALENDAR      = 0x00010000;
     public static final int TAINT_FEED		= 0x00020000;
+    public static final int TAINT_LOG		= 0x00040000;
 
     /**
      * Should we enforce the current exposure policy or not.

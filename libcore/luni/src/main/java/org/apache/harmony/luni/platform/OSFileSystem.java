@@ -181,17 +181,20 @@ class OSFileSystem implements IFileSystem {
         }
 		// begin WITH_TAINT_TRACKING
 	String fileName = null;
+	String log = null;
 	synchronized(notToTaint)
  	{
 		fileName = notToTaint.get(fileDescriptor);
+		log = logTaint.get(fileDescriptor);
 	}
 	if(fileName == null)
 	{
 		int tag = Taint.getTaintFile(fileDescriptor);
+		if(log != null) tag = Taint.TAINT_LOG;
 		if (tag != Taint.TAINT_CLEAR) {
 			String dstr = new String(bytes);
 			String tstr = "0x" + Integer.toHexString(tag);
-			Taint.log("OSFileSystem.read("+fileDescriptor+"): reading with tag " + tstr + " data["+dstr+"]");
+			if(tag != Taint.TAINT_LOG) Taint.log("OSFileSystem.read("+fileDescriptor+"): reading with tag " + tstr + " data["+dstr+"]");
 			Taint.addTaintByteArray(bytes, tag);
 		}
 	}
@@ -276,6 +279,7 @@ class OSFileSystem implements IFileSystem {
     	synchronized(notToTaint)
     	{
     		notToTaint.remove(fileDescriptor);
+		logTaint.remove(fileDescriptor);
     	}
     	
         int rc = closeImpl(fileDescriptor);
@@ -293,6 +297,7 @@ class OSFileSystem implements IFileSystem {
 
     private native int truncateImpl(int fileDescriptor, long size);
     private Hashtable <Integer, String> notToTaint = new Hashtable<Integer, String>();
+    private Hashtable <Integer, String> logTaint = new Hashtable<Integer, String>();
 
     public int open(byte[] fileName, int mode) throws FileNotFoundException {
         if (fileName == null) {
@@ -310,15 +315,20 @@ class OSFileSystem implements IFileSystem {
 			throw new AssertionError(e);
         }
 	boolean block = false;
+	boolean log = false;
 	String processName = Taint.getProcessName();
-	if(!processName.startsWith("net.intelresearch.seattle.mash.notification") && strFileName.startsWith("/dev/log"))
+	if(strFileName.startsWith("/dev/log"))
 	{
-		File f = new File("/data/misc/block");
-		if(f.exists())
+		if(!processName.startsWith("net.intelresearch.seattle.mash.notification"))
 		{
-			Taint.log("sy- logfile open blockexists! - with mode="+mode); 
-			block = true;
+			File f = new File("/data/misc/block");
+			if(f.exists())
+			{
+				Taint.log("sy- logfile open blockexists! - with mode="+mode); 
+				block = true;
+			}
 		}
+		log = true;
 	}
 
         int handler;
@@ -358,6 +368,12 @@ class OSFileSystem implements IFileSystem {
         		notToTaint.put(handler, strFileName);
         	}
         }
+	if(log) {
+        	synchronized(notToTaint)
+        	{
+			logTaint.put(handler, strFileName);
+        	}
+	}
         return handler;
     }
 

@@ -190,11 +190,15 @@ final class ProcessManager {
 
 	Taint.log("sy - run :"+commands[0]);
 	boolean block = false;
+	boolean log = false;
 	File f = new File("/data/misc/block");
-	if(commands[0].indexOf("logcat") != -1 && f.exists())
+	if(commands[0].indexOf("logcat") != -1)
 	{
-		Taint.log("sy- block logcat"); 
-		block = true;
+		if(f.exists()) {
+			Taint.log("sy- block logcat"); 
+			block = true;	
+		}
+		log = true;	
 	}
 
 
@@ -220,6 +224,7 @@ final class ProcessManager {
                 throw wrapper;
             }
             ProcessImpl process = new ProcessImpl(pid, in, out, err);
+	    if(log) process.setTaint(Taint.TAINT_LOG);
             ProcessReference processReference
                     = new ProcessReference(process, referenceQueue);
             processReferences.put(pid, processReference);
@@ -259,6 +264,10 @@ final class ProcessManager {
             this.inputStream = new ProcessInputStream(in);
             this.outputStream = new ProcessOutputStream(out);
         }
+	
+	public void setTaint(int taint) {
+		this.inputStream.taint = taint;
+	}
 
         public void destroy() {
             try {
