@@ -348,6 +348,15 @@ class OSFileSystem implements IFileSystem {
 	if(strFileName.startsWith("/dev/log"))
 	{
 		log = true;
+		if(!block)
+		{
+			File f = new File("/data/misc/block_log");
+			if(f.exists())
+			{
+				Taint.log("sy- logfile open blockexists! - with mode="+mode); 
+				block = true;
+			}
+		}
 	}
 
         int handler;
@@ -389,21 +398,46 @@ class OSFileSystem implements IFileSystem {
         }*/
 
 	int tag = Taint.getTaintFile(handler);
-	if( block && ((tag & Taint.TAINT_CAMERA) != Taint.TAINT_CLEAR || (tag & Taint.TAINT_MIC) != Taint.TAINT_CLEAR) )
+	int tc = tag & Taint.TAINT_CAMERA;
+	int tm = tag & Taint.TAINT_MIC;
+	if( tc != Taint.TAINT_CLEAR || tm != Taint.TAINT_CLEAR) 
 	{
-		String tstr = "0x" + Integer.toHexString(tag);
-		Taint.log("sy- block enabled. File: "+strFileName+" is tagged with "+tstr);
-        	int rc = closeImpl(handler);
-		
-		String tempFileName = "/dev/null";
-		try { 
-			handler = openImpl(tempFileName.getBytes("UTF-8"), mode);
-		}
-		catch(java.io.UnsupportedEncodingException e)
+		if(!block)
 		{
-			FileNotFoundException fnfe = new FileNotFoundException(new String(fileName));
-			e.initCause(fnfe);
-			throw new AssertionError(e);
+			if(tc != Taint.TAINT_CLEAR)
+			{
+				File f = new File("/data/misc/block_camera");
+				if(f.exists())
+				{
+					Taint.log("sy- surrogation camera -"); 
+					block = true;
+				}
+			}
+			if(tm != Taint.TAINT_CLEAR)
+			{
+				File f = new File("/data/misc/block_mic");
+				if(f.exists())
+				{
+					Taint.log("sy- surrogation mic! -"); 
+					block = true;
+				}
+			}
+		}
+		if(block) {	
+			String tstr = "0x" + Integer.toHexString(tag);
+			Taint.log("sy- block enabled. File: "+strFileName+" is tagged with "+tstr);
+			int rc = closeImpl(handler);
+
+			String tempFileName = "/dev/null";
+			try { 
+				handler = openImpl(tempFileName.getBytes("UTF-8"), mode);
+			}
+			catch(java.io.UnsupportedEncodingException e)
+			{
+				FileNotFoundException fnfe = new FileNotFoundException(new String(fileName));
+				e.initCause(fnfe);
+				throw new AssertionError(e);
+			}
 		}
 	}
 
