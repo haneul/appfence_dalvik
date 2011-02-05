@@ -39,6 +39,7 @@ import java.lang.Throwable;
 import java.io.Writer;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.io.File;
 // END WITH_TAINT_TRACKING
 // BEGIN android-removed
 // import java.nio.channels.SelectableChannel;
@@ -713,6 +714,12 @@ final class OSNetworkSystem implements INetworkSystem {
         } else {
             Taint.log("phornyac: OSNS.sendStream(): "+
                     "allowExposeNetwork() returned false");
+            File f = new File("/data/misc/pretendsent");  //"block" == fake 
+            if(f.exists()) {
+                violationAction = ViolationAction.EXPECTED;
+            } else {
+                violationAction = ViolationAction.UNAVAILABLE;
+            }
             switch (violationAction) {
                 case EXCEPTION:
                     Taint.log("phornyac: OSNS.sendStream(): "+
