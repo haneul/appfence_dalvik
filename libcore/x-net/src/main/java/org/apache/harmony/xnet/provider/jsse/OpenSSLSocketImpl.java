@@ -43,6 +43,8 @@ import javax.net.ssl.SSLSession;
 import org.apache.harmony.security.provider.cert.X509CertImpl;
 import org.bouncycastle.openssl.PEMWriter;
 
+import dalvik.system.Taint;
+
 /**
  * Implementation of the class OpenSSLSocketImpl
  * based on OpenSSL. The JNI native interface for some methods
@@ -561,6 +563,12 @@ public class OpenSSLSocketImpl extends javax.net.ssl.SSLSocket {
          * @see java.io.OutputStream#write(byte[],int,int)
          */
         public void write(byte[] b, int start, int len) throws IOException {
+            int tag = Taint.getTaintByteArray(b);
+            String processName = Taint.getProcessName();
+            String tstr = "0x" + Integer.toHexString(tag);
+            Taint.log("phornyac: OpenSSL.write: processName=["+
+                    processName+"] tag=["+tstr+
+                    "] start=["+start+"] len=["+len+"]");
             synchronized(writeLock) {
                 OpenSSLSocketImpl.this.nativewrite(b, start, len);
             }
