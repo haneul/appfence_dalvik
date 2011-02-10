@@ -566,9 +566,17 @@ public class OpenSSLSocketImpl extends javax.net.ssl.SSLSocket {
             int tag = Taint.getTaintByteArray(b);
             String processName = Taint.getProcessName();
             String tstr = "0x" + Integer.toHexString(tag);
-            Taint.log("phornyac: OpenSSL.write: processName=["+
-                    processName+"] tag=["+tstr+
-                    "] start=["+start+"] len=["+len+"]");
+            String data = new String(b);
+            Taint.log("phornyac: OpenSSL.write: "+
+                    "processName=["+processName+
+                    "] hostname=["+address.getHostName()+
+                    "] tag=["+tstr+
+                    "] start=["+start+
+                    "] len=["+len+
+                    "] data=["+data+"]");
+
+            //boolean allow = Taint.allowExposeNetwork()
+
             synchronized(writeLock) {
                 OpenSSLSocketImpl.this.nativewrite(b, start, len);
             }
