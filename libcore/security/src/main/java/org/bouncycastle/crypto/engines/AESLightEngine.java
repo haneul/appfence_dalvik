@@ -5,6 +5,9 @@ import org.bouncycastle.crypto.CipherParameters;
 import org.bouncycastle.crypto.DataLengthException;
 import org.bouncycastle.crypto.params.KeyParameter;
 
+// BEGIN WITH_TAINT_TRACKING
+import dalvik.system.Taint;
+// END WITH_TAINT_TRACKING
 /**
  * an implementation of the AES (Rijndael), from FIPS-197.
  * <p>
@@ -294,6 +297,7 @@ public class AESLightEngine
         {
             throw new DataLengthException("output buffer too short");
         }
+	int tag = Taint.getTaintByteArray(in);
 
         if (forEncryption)
         {
@@ -307,6 +311,9 @@ public class AESLightEngine
             decryptBlock(WorkingKey);
             packBlock(out, outOff);
         }
+	if(tag != Taint.TAINT_CLEAR) {
+	    Taint.addTaintByteArray(out, tag);
+	}
 
         return BLOCK_SIZE;
     }
