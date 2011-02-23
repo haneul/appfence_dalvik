@@ -18,6 +18,7 @@
 // BEGIN android-note
 // address length was changed from long to int for performance reasons.
 // END android-note
+//test
 
 package org.apache.harmony.luni.platform;
 
