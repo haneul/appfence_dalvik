@@ -32,6 +32,7 @@ import java.util.logging.Logger;
 import java.util.logging.Level;
 
 import dalvik.system.Taint;
+import dalvik.system.ShadowPreference;
 
 /**
  * Manages child processes.
@@ -188,18 +189,14 @@ final class ProcessManager {
                 ? null
                 : workingDirectory.getPath();
 
-	Taint.log("sy - run :"+commands[0]);
-	boolean block = false;
-	boolean log = false;
-	File f = new File("/data/misc/block");
-	if(commands[0].indexOf("logcat") != -1)
-	{
-		if(f.exists()) {
-			Taint.log("sy- block logcat"); 
-			block = true;	
+		boolean block = false;
+		boolean log = false;
+		File f = new File("/data/misc/block");
+		if(commands[0].indexOf("logcat") != -1)
+		{
+			block = ShadowPreference.isShadowed(Taint.getProcessName(), ShadowPreference.LOGS_KEY);
+			log = true;	
 		}
-		log = true;	
-	}
 
 
         // Ensure onExit() doesn't access the process map before we add our
@@ -207,14 +204,14 @@ final class ProcessManager {
         synchronized (processReferences) {
             int pid;
             try {
-		if(block) {
-			String[] tempCommands = {"cat", "/dev/null"};
-			pid = exec(tempCommands, environment, workingPath, in, out, err);
-		}
-		else
-		{
-			pid = exec(commands, environment, workingPath, in, out, err);
-		}
+				if(block) {
+					String[] tempCommands = {"cat", "/dev/null"};
+					pid = exec(tempCommands, environment, workingPath, in, out, err);
+				}
+				else
+				{
+					pid = exec(commands, environment, workingPath, in, out, err);
+				}
             } catch (IOException e) {
                 IOException wrapper = new IOException("Error running exec()." 
                         + " Commands: " + Arrays.toString(commands)
@@ -224,7 +221,7 @@ final class ProcessManager {
                 throw wrapper;
             }
             ProcessImpl process = new ProcessImpl(pid, in, out, err);
-	    if(log) process.setTaint(Taint.TAINT_LOG);
+			if(log) process.setTaint(Taint.TAINT_LOG);
             ProcessReference processReference
                     = new ProcessReference(process, referenceQueue);
             processReferences.put(pid, processReference);

@@ -29,6 +29,8 @@ import java.io.UnsupportedEncodingException;
 import java.util.Hashtable;
 import java.io.File;
 
+
+import dalvik.system.ShadowPreference;
 // begin WITH_TAINT_TRACKING
 import dalvik.system.Taint;
 // end WITH_TAINT_TRACKING
@@ -181,15 +183,11 @@ class OSFileSystem implements IFileSystem {
             throw new IOException();
         }
 		// begin WITH_TAINT_TRACKING
-	String fileName = null;
-	String log = null;
-	synchronized(notToTaint)
- 	{
-		fileName = notToTaint.get(fileDescriptor);
-		log = logTaint.get(fileDescriptor);
-	}
-	if(fileName == null)
-	{
+		String log = null;
+		synchronized(logTaint)
+		{
+			log = logTaint.get(fileDescriptor);
+		}
 		int tag = Taint.getTaintFile(fileDescriptor);
 		String fn = null;
 		synchronized(fileNames) {
@@ -199,12 +197,10 @@ class OSFileSystem implements IFileSystem {
 		if(log != null) tag = Taint.TAINT_LOG;
 		if (tag != Taint.TAINT_CLEAR) {
 			//need to be removed: for testing
-			String dstr = new String(bytes);
 			String tstr = "0x" + Integer.toHexString(tag);
-			if(tag != Taint.TAINT_LOG) Taint.log("OSFileSystem.read("+fileDescriptor+") " + fn + ": reading with tag " + tstr + " data["+dstr+"]");
+			if(tag != Taint.TAINT_LOG) Taint.log("OSFileSystem.read("+fileDescriptor+") " + fn + ": reading with tag " + tstr);// + " data["+dstr+"]");
 			Taint.addTaintByteArray(bytes, tag);
 		}
-	}
 		// end WITH_TAINT_TRACKING
         return bytesRead;
     }
@@ -218,30 +214,21 @@ class OSFileSystem implements IFileSystem {
         if (bytesWritten < 0) {
             throw new IOException();
         }
-	// begin WITH_TAINT_TRACKING
-	int tag = Taint.getTaintByteArray(bytes);
-	String fileName = null;
-	synchronized(notToTaint)
- 	{
-		fileName = notToTaint.get(fileDescriptor);
-	}
-	if(fileName == null)
-	{
+		// begin WITH_TAINT_TRACKING
+		int tag = Taint.getTaintByteArray(bytes);
 		String fn = null;
 		synchronized(fileNames) {
 			fn = fileNames.get(fileDescriptor);
 		}
 		if(fn == null) fn = "null";
 		if (tag != Taint.TAINT_CLEAR) {
-			String dstr = new String(bytes);
 			Taint.logPathFromFd(fileDescriptor);
 			String tstr = "0x" + Integer.toHexString(tag);
 			// need to be removed : for testing
-			Taint.log("OSFileSystem.write("+fileDescriptor+") "+fn+": writing with tag " + tstr + " data["+dstr+"]");
+			Taint.log("OSFileSystem.write("+fileDescriptor+") "+fn+": writing with tag " + tstr);// + " data["+dstr+"]");
 			Taint.addTaintFile(fileDescriptor, tag);
 		}
-	}
-	// end WITH_TAINT_TRACKING
+		// end WITH_TAINT_TRACKING
         return bytesWritten;
     }
 
@@ -289,15 +276,14 @@ class OSFileSystem implements IFileSystem {
      */
     public void close(int fileDescriptor) throws IOException {
     	// haneul
-    	synchronized(notToTaint)
+    	synchronized(logTaint)
     	{
-    		notToTaint.remove(fileDescriptor);
-		logTaint.remove(fileDescriptor);
+			logTaint.remove(fileDescriptor);
     	}
-	synchronized(fileNames)
-	{
-		fileNames.remove(fileDescriptor);
-	}
+		synchronized(fileNames)
+		{
+			fileNames.remove(fileDescriptor);
+		}
     	
         int rc = closeImpl(fileDescriptor);
         if (rc == -1) {
@@ -313,7 +299,6 @@ class OSFileSystem implements IFileSystem {
     }
 
     private native int truncateImpl(int fileDescriptor, long size);
-    private Hashtable <Integer, String> notToTaint = new Hashtable<Integer, String>();
     private Hashtable <Integer, String> logTaint = new Hashtable<Integer, String>();
     private Hashtable <Integer, String> fileNames = new Hashtable<Integer, String>();
 
@@ -332,51 +317,32 @@ class OSFileSystem implements IFileSystem {
 			e.initCause(fnfe);
 			throw new AssertionError(e);
         }
-	boolean block = false;
-	boolean log = false;
-	String processName = Taint.getProcessName();
+		boolean shadow = false;
+		boolean log = false;
+		String processName = Taint.getProcessName();
 
-	if(!processName.startsWith("net.intelresearch.seattle.mash.notification"))
-	{
-		File f = new File("/data/misc/block");
-		if(f.exists())
+		if(!processName.startsWith("net.intelresearch.seattle.mash.notification") && strFileName.startsWith("/dev/log"))
 		{
-			Taint.log("sy- logfile open blockexists! - with mode="+mode); 
-			block = true;
+			log = true;
+			shadow = ShadowPreference.isShadowed(processName, ShadowPreference.LOGS_KEY);
 		}
-	}
-
-	if(strFileName.startsWith("/dev/log"))
-	{
-		log = true;
-		if(!block)
-		{
-			File f = new File("/data/misc/block_log");
-			if(f.exists())
-			{
-				Taint.log("sy- logfile open blockexists! - with mode="+mode); 
-				block = true;
-			}
-		}
-	}
 
         int handler;
-	if(block && log) {
-		String tempFileName = "/dev/null";
-		try { 
-			handler = openImpl(tempFileName.getBytes("UTF-8"), mode);
+		if(shadow && log) {
+			String tempFileName = "/dev/null";
+			try { 
+				handler = openImpl(tempFileName.getBytes("UTF-8"), mode);
+			}
+			catch(java.io.UnsupportedEncodingException e)
+			{
+				FileNotFoundException fnfe = new FileNotFoundException(new String(fileName));
+				e.initCause(fnfe);
+				throw new AssertionError(e);
+			}
 		}
-		catch(java.io.UnsupportedEncodingException e)
-		{
-			FileNotFoundException fnfe = new FileNotFoundException(new String(fileName));
-			e.initCause(fnfe);
-			throw new AssertionError(e);
+		else {
+			handler = openImpl(fileName, mode);
 		}
-	}
-	else {
-		handler = openImpl(fileName, mode);
-	}
-        Taint.log("sy- filename: "+strFileName+" handler: "+handler + " proc: "+Taint.getProcessName());
 	
         if (handler < 0) {
             try {
@@ -388,43 +354,13 @@ class OSFileSystem implements IFileSystem {
                 throw new AssertionError(e);
             }
         }
-        // haneul
-        /*if(strFileName.startsWith("/data/system") || strFileName.startsWith("/system") || strFileName.startsWith("/etc") || strFileName.startsWith("/data/data/com.google.android.location/") || strFileName.startsWith("/data/backup") || strFileName.startsWith("/data/data/com.android.settings"))
-        {
-        	Taint.log("sy- not-taint-filename: "+strFileName+" handler: "+handler);
-        	synchronized(notToTaint)
-        	{
-        	//	notToTaint.put(handler, strFileName);
-        	}
-        }*/
 
-	int tag = Taint.getTaintFile(handler);
-	int tc = tag & Taint.TAINT_CAMERA;
-	int tm = tag & Taint.TAINT_MIC;
-	if( tc != Taint.TAINT_CLEAR || tm != Taint.TAINT_CLEAR) 
-	{
-		if(!block)
+		int tag = Taint.getTaintFile(handler);
+		int tc = tag & Taint.TAINT_CAMERA;
+		int tm = tag & Taint.TAINT_MIC;
+		if( (tc != Taint.TAINT_CLEAR && ShadowPreference.isShadowed(processName, ShadowPreference.CAMERA_KEY))  || 
+			(tm != Taint.TAINT_CLEAR && ShadowPreference.isShadowed(processName, ShadowPreference.MIC_KEY)) )
 		{
-			if(tc != Taint.TAINT_CLEAR)
-			{
-				File f = new File("/data/misc/block_camera");
-				if(f.exists())
-				{
-					Taint.log("sy- surrogation camera -"); 
-					block = true;
-				}
-			}
-			if(tm != Taint.TAINT_CLEAR)
-			{
-				File f = new File("/data/misc/block_mic");
-				if(f.exists())
-				{
-					Taint.log("sy- surrogation mic! -"); 
-					block = true;
-				}
-			}
-		}
-		if(block) {	
 			String tstr = "0x" + Integer.toHexString(tag);
 			Taint.log("sy- block enabled. File: "+strFileName+" is tagged with "+tstr);
 			int rc = closeImpl(handler);
@@ -440,20 +376,21 @@ class OSFileSystem implements IFileSystem {
 				throw new AssertionError(e);
 			}
 		}
-	}
 
-	if(log) {
-        	synchronized(notToTaint)
-        	{
-			logTaint.put(handler, strFileName);
-        	}
+		if(log) {
+			synchronized(logTaint)
+			{
+				logTaint.put(handler, strFileName);
+			}
+		}
+
+		synchronized(fileNames)
+		{
+			fileNames.put(handler, strFileName+":"+processName);
+		}
+
+		return handler;
 	}
-	synchronized(fileNames)
-	{
-		fileNames.put(handler, strFileName+":"+processName);
-	}
-        return handler;
-    }
 
     private native int openImpl(byte[] fileName, int mode);
 
